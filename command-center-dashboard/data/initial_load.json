@@ -1,0 +1,64 @@
+{
+  "simulationTime": "Day 0, 04:00",
+  "timestamp": "2023-02-06T04:00:00Z",
+  "chatResponse": "Welcome to the Command Center Dashboard. The simulation is starting. Displaying all known critical incidents as of Hour 4.",
+  "mapAction": "REPLACE",
+  "viewState": {
+    "bounds": {
+      "southwest": { "lat": 37.05, "lon": 37.15 },
+      "northeast": { "lat": 37.09, "lon": 37.19 }
+    }
+  },
+  "mapLayers": [
+    {
+      "layerId": "critical_incidents_0400",
+      "layerName": "Critical Incidents",
+      "geometryType": "Point",
+      "style": {
+        "icon": "BUILDING_COLLAPSE",
+        "color": "#DC2626",
+        "size": 1
+      },
+      "data": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": { "type": "Point", "coordinates": [37.17, 37.07] },
+            "properties": {
+              "incidentId": "B-001",
+              "type": "Building Collapse",
+              "summary": "Güneş Apartments collapse, multiple trapped",
+              "severity": "CRITICAL",
+              "reportedAt": "2023-02-06T00:08:00Z"
+            }
+          },
+          {
+            "type": "Feature",
+            "geometry": { "type": "Point", "coordinates": [37.18, 37.08] },
+            "properties": {
+              "incidentId": "H-001",
+              "type": "Hospital Overload",
+              "summary": "Nurdağı State Hospital reports ER is at capacity.",
+              "severity": "HIGH",
+              "reportedAt": "2023-02-06T03:30:00Z"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tabularData": null,
+  "uiContext": {
+    "suggestedActions": [
+      {
+        "label": "Generate summary of all needs",
+        "actionId": "GENERATE_AREA_BRIEFING",
+        "payload": { "area": "NURDAGI_CITY_LIMITS" }
+      }
+    ]
+  },
+  "clientStateHint": {
+    "activeDomainFilter": "CRITICAL"
+  }
+}

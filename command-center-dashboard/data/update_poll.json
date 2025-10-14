@@ -1,0 +1,38 @@
+{
+  "latestTimestamp": "2023-02-07T11:05:00Z",
+  "mapUpdates": {
+    "mapAction": "APPEND",
+    "mapLayers": [
+      {
+        "layerId": "new_supply_site_002",
+        "layerName": "Food Supply",
+        "geometryType": "Point",
+        "style": { "icon": "DONATION_POINT", "color": "#16A34A", "size": 1 },
+        "data": {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "geometry": { "type": "Point", "coordinates": [37.165, 37.075] },
+              "properties": {
+                "siteId": "DONATION-HUB-01",
+                "name": "Civilian Donation Drop-off",
+                "reportedAt": "2023-02-07T11:02:30Z"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "criticalAlerts": [
+    {
+      "alertId": "alert_045",
+      "timestamp": "2023-02-07T11:04:15Z",
+      "severity": "CRITICAL",
+      "title": "Imminent Structural Failure",
+      "summary": "Engineer reports Umut office building is at risk of collapse.",
+      "location": { "lat": 37.071, "lon": 37.172 }
+    }
+  ]
+}
