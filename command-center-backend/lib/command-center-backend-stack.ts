@@ -19,7 +19,7 @@ interface CommandCenterBackendStackProps extends cdk.StackProps {
 export class CommandCenterBackendStack extends cdk.Stack {
   public readonly table: dynamodb.Table;
   public readonly api: apigateway.RestApi;
-  
+
   // IAM Roles
   private updatesLambdaRole: iam.Role;
   private queryLambdaRole: iam.Role;
@@ -50,7 +50,7 @@ export class CommandCenterBackendStack extends cdk.Stack {
 
     // Create Lambda functions
     this.updatesHandlerLambda = this.createUpdatesHandlerLambda(config);
-    
+
     // Create placeholder for databaseQueryToolLambda (will be implemented in task 5)
     // For now, we'll create the Bedrock Agent configuration that references it
     this.databaseQueryToolLambda = this.createDatabaseQueryToolLambda(config);
@@ -143,13 +143,9 @@ export class CommandCenterBackendStack extends cdk.Stack {
       ],
     });
 
-    // Allow Bedrock Agent to invoke the tool Lambda
-    this.toolLambdaRole.addToPolicy(new iam.PolicyStatement({
-      effect: iam.Effect.ALLOW,
-      principals: [new iam.ServicePrincipal('bedrock.amazonaws.com')],
-      actions: ['lambda:InvokeFunction'],
-      resources: ['*'],
-    }));
+    // Note: Permission for Bedrock Agent to invoke the tool Lambda
+    // will be added directly to the Lambda function after it's created
+    // (see createDatabaseQueryToolLambda method)
 
     // Role for Bedrock Agent - needs to invoke foundation models
     this.bedrockAgentRole = new iam.Role(this, 'BedrockAgentRole', {
@@ -158,14 +154,16 @@ export class CommandCenterBackendStack extends cdk.Stack {
       roleName: `${config.stackName}-BedrockAgentRole`,
     });
 
-    // Add permissions to invoke Claude 3 Sonnet model
+    // Add permissions to invoke the configured Bedrock model
     this.bedrockAgentRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
         'bedrock:InvokeModel',
       ],
       resources: [
-        `arn:aws:bedrock:${config.region}::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0`,
+        `arn:aws:bedrock:${config.region}::foundation-model/${config.bedrockModel}`,
+        // Also allow all Claude models for flexibility
+        `arn:aws:bedrock:${config.region}::foundation-model/anthropic.claude-*`,
       ],
     }));
   }
@@ -184,9 +182,11 @@ export class CommandCenterBackendStack extends cdk.Stack {
       },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       encryption: dynamodb.TableEncryption.AWS_MANAGED,
-      pointInTimeRecovery: true,
-      removalPolicy: config.stage === 'prod' 
-        ? cdk.RemovalPolicy.RETAIN 
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true,
+      },
+      removalPolicy: config.stage === 'prod'
+        ? cdk.RemovalPolicy.RETAIN
         : cdk.RemovalPolicy.DESTROY,
     });
 
@@ -215,16 +215,16 @@ export class CommandCenterBackendStack extends cdk.Stack {
   private createAPIGateway(config: EnvironmentConfig): apigateway.RestApi {
     // Task 9.1: Create REST API in CDK
     // Task 10.1: Configure CloudWatch logging for API Gateway
-    
+
     // Create CloudWatch Log Group for API Gateway access logs
     const apiLogGroup = new logs.LogGroup(this, 'APIGatewayAccessLogs', {
       logGroupName: `/aws/apigateway/${config.stackName}-API`,
       retention: logs.RetentionDays.TWO_WEEKS,
-      removalPolicy: config.stage === 'prod' 
-        ? cdk.RemovalPolicy.RETAIN 
+      removalPolicy: config.stage === 'prod'
+        ? cdk.RemovalPolicy.RETAIN
         : cdk.RemovalPolicy.DESTROY,
     });
-    
+
     // Define API Gateway REST API resource with proper configuration
     const api = new apigateway.RestApi(this, 'CommandCenterAPI', {
       restApiName: `${config.stackName}-API`,
@@ -252,7 +252,7 @@ export class CommandCenterBackendStack extends cdk.Stack {
       },
       // Task 9.3: Set up CORS configuration
       defaultCorsPreflightOptions: {
-        allowOrigins: config.stage === 'prod' 
+        allowOrigins: config.stage === 'prod'
           ? ['https://your-production-domain.com'] // Update with actual production domain
           : apigateway.Cors.ALL_ORIGINS, // Allow all origins in dev/staging
         allowMethods: ['GET', 'POST', 'OPTIONS'],
@@ -280,17 +280,17 @@ export class CommandCenterBackendStack extends cdk.Stack {
 
   private configureAPIRoutes(api: apigateway.RestApi): void {
     // Task 9.2: Create API routes and Lambda integrations
-    
+
     // Create /data resource
     const dataResource = api.root.addResource('data');
-    
+
     // Create GET /data/updates route → updatesHandlerLambda
     const updatesResource = dataResource.addResource('updates');
     const updatesIntegration = new apigateway.LambdaIntegration(this.updatesHandlerLambda!, {
       proxy: true,
       allowTestInvoke: true,
     });
-    
+
     updatesResource.addMethod('GET', updatesIntegration, {
       apiKeyRequired: true,
       requestParameters: {
@@ -321,14 +321,14 @@ export class CommandCenterBackendStack extends cdk.Stack {
 
     // Create /agent resource
     const agentResource = api.root.addResource('agent');
-    
+
     // Create POST /agent/query route → queryHandlerLambda
     const queryResource = agentResource.addResource('query');
     const queryIntegration = new apigateway.LambdaIntegration(this.queryHandlerLambda!, {
       proxy: true,
       allowTestInvoke: true,
     });
-    
+
     queryResource.addMethod('POST', queryIntegration, {
       apiKeyRequired: true,
       requestValidator: new apigateway.RequestValidator(this, 'QueryRequestValidator', {
@@ -365,7 +365,7 @@ export class CommandCenterBackendStack extends cdk.Stack {
       proxy: true,
       allowTestInvoke: true,
     });
-    
+
     actionResource.addMethod('POST', actionIntegration, {
       apiKeyRequired: true,
       requestValidator: new apigateway.RequestValidator(this, 'ActionRequestValidator', {
@@ -486,6 +486,13 @@ export class CommandCenterBackendStack extends cdk.Stack {
     // Create shutdown Lambda function with inline code
     const shutdownCode = 'const { CloudFormationClient, DeleteStackCommand } = require(\'@aws-sdk/client-cloudformation\');\\n\\nexports.handler = async (event) => {\\n  console.log(\'Cost breach shutdown triggered\', { event: JSON.stringify(event) });\\n  \\n  const stackName = process.env.STACK_NAME;\\n  const region = process.env.AWS_REGION;\\n  \\n  if (!stackName) {\\n    console.error(\'STACK_NAME environment variable not set\');\\n    return { statusCode: 500, body: \'Configuration error\' };\\n  }\\n  \\n  try {\\n    const client = new CloudFormationClient({ region });\\n    \\n    console.log(\'Initiating stack deletion\', { stackName });\\n    \\n    const command = new DeleteStackCommand({\\n      StackName: stackName,\\n    });\\n    \\n    await client.send(command);\\n    \\n    console.log(\'Stack deletion initiated successfully\', { stackName });\\n    \\n    return {\\n      statusCode: 200,\\n      body: JSON.stringify({\\n        message: \'Stack deletion initiated due to cost breach\',\\n        stackName,\\n        timestamp: new Date().toISOString(),\\n      }),\\n    };\\n  } catch (error) {\\n    console.error(\'Error deleting stack\', {\\n      error: error.message,\\n      stack: error.stack,\\n      stackName,\\n    });\\n    \\n    return {\\n      statusCode: 500,\\n      body: JSON.stringify({\\n        error: \'Failed to delete stack\',\\n        message: error.message,\\n      }),\\n    };\\n  }\\n};';
 
+    // Create log group for shutdown Lambda
+    const shutdownLogGroup = new logs.LogGroup(this, 'CostBreachShutdownLogGroup', {
+      logGroupName: `/aws/lambda/${config.stackName}-CostBreachShutdown`,
+      retention: logs.RetentionDays.ONE_MONTH,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
     const shutdownLambda = new lambda.Function(this, 'CostBreachShutdownLambda', {
       functionName: config.stackName + '-CostBreachShutdown',
       runtime: lambda.Runtime.NODEJS_20_X,
@@ -497,7 +504,7 @@ export class CommandCenterBackendStack extends cdk.Stack {
       },
       timeout: cdk.Duration.seconds(30),
       description: 'Automatically shuts down resources when cost threshold is breached',
-      logRetention: logs.RetentionDays.ONE_MONTH,
+      logGroup: shutdownLogGroup,
     });
 
     // Grant SNS permission to invoke the shutdown Lambda
@@ -529,6 +536,13 @@ export class CommandCenterBackendStack extends cdk.Stack {
   }
 
   private createUpdatesHandlerLambda(config: EnvironmentConfig): lambda.Function {
+    // Create log group explicitly
+    const logGroup = new logs.LogGroup(this, 'UpdatesHandlerLogGroup', {
+      logGroupName: `/aws/lambda/${config.stackName}-UpdatesHandler`,
+      retention: logs.RetentionDays.TWO_WEEKS,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
     const updatesLambda = new lambda.Function(this, 'UpdatesHandlerLambda', {
       functionName: `${config.stackName}-UpdatesHandler`,
       runtime: lambda.Runtime.NODEJS_20_X,
@@ -543,14 +557,20 @@ export class CommandCenterBackendStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(30),
       memorySize: 512,
       description: 'Handles GET /data/updates endpoint for real-time event updates',
-      logRetention: logs.RetentionDays.TWO_WEEKS,
+      logGroup: logGroup,
     });
 
     return updatesLambda;
   }
 
   private createDatabaseQueryToolLambda(config: EnvironmentConfig): lambda.Function {
-    // Placeholder Lambda for databaseQueryTool - will be fully implemented in task 5
+    // Create log group explicitly
+    const logGroup = new logs.LogGroup(this, 'DatabaseQueryToolLogGroup', {
+      logGroupName: `/aws/lambda/${config.stackName}-DatabaseQueryTool`,
+      retention: logs.RetentionDays.TWO_WEEKS,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
     const toolLambda = new lambda.Function(this, 'DatabaseQueryToolLambda', {
       functionName: `${config.stackName}-DatabaseQueryTool`,
       runtime: lambda.Runtime.NODEJS_20_X,
@@ -565,7 +585,7 @@ export class CommandCenterBackendStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(30),
       memorySize: 512,
       description: 'Action Group tool for Bedrock Agent to query DynamoDB',
-      logRetention: logs.RetentionDays.TWO_WEEKS,
+      logGroup: logGroup,
     });
 
     // Grant Bedrock Agent permission to invoke this Lambda
@@ -575,6 +595,13 @@ export class CommandCenterBackendStack extends cdk.Stack {
   }
 
   private createQueryHandlerLambda(config: EnvironmentConfig): lambda.Function {
+    // Create log group explicitly
+    const logGroup = new logs.LogGroup(this, 'QueryHandlerLogGroup', {
+      logGroupName: `/aws/lambda/${config.stackName}-QueryHandler`,
+      retention: logs.RetentionDays.TWO_WEEKS,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
     const queryLambda = new lambda.Function(this, 'QueryHandlerLambda', {
       functionName: `${config.stackName}-QueryHandler`,
       runtime: lambda.Runtime.NODEJS_20_X,
@@ -590,13 +617,20 @@ export class CommandCenterBackendStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(60), // Longer timeout for agent invocation
       memorySize: 512,
       description: 'Handles POST /agent/query endpoint for natural language queries',
-      logRetention: logs.RetentionDays.TWO_WEEKS,
+      logGroup: logGroup,
     });
 
     return queryLambda;
   }
 
   private createActionHandlerLambda(config: EnvironmentConfig): lambda.Function {
+    // Create log group explicitly
+    const logGroup = new logs.LogGroup(this, 'ActionHandlerLogGroup', {
+      logGroupName: `/aws/lambda/${config.stackName}-ActionHandler`,
+      retention: logs.RetentionDays.TWO_WEEKS,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
     const actionLambda = new lambda.Function(this, 'ActionHandlerLambda', {
       functionName: `${config.stackName}-ActionHandler`,
       runtime: lambda.Runtime.NODEJS_20_X,
@@ -612,14 +646,14 @@ export class CommandCenterBackendStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(60), // Longer timeout for agent invocation
       memorySize: 512,
       description: 'Handles POST /agent/action endpoint for pre-defined actions',
-      logRetention: logs.RetentionDays.TWO_WEEKS,
+      logGroup: logGroup,
     });
 
     return actionLambda;
   }
 
-  private createBedrockAgent(config: EnvironmentConfig): { 
-    agent: bedrock.CfnAgent; 
+  private createBedrockAgent(config: EnvironmentConfig): {
+    agent: bedrock.CfnAgent;
     agentAlias: bedrock.CfnAgentAlias;
   } {
     // Agent instruction prompt (subtask 6.2)
@@ -662,7 +696,7 @@ Example good responses:
     const agent = new bedrock.CfnAgent(this, 'CommandCenterAgent', {
       agentName: `${config.stackName}-Agent`,
       agentResourceRoleArn: this.bedrockAgentRole.roleArn,
-      foundationModel: 'anthropic.claude-3-sonnet-20240229-v1:0',
+      foundationModel: config.bedrockModel,
       instruction: instructionPrompt,
       description: 'AI agent for Command Center disaster response queries',
       idleSessionTtlInSeconds: 600, // 10 minutes

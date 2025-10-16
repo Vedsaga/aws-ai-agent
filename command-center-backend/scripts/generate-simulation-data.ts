@@ -121,13 +121,13 @@ function generateUUID(): string {
 }
 
 /**
- * Generate timestamp for a specific day and hour
+ * Generate timestamp for a specific day and hour with unique precision
  */
-function generateTimestamp(day: number, hour: number, minute: number = 0): string {
+function generateTimestamp(day: number, hour: number, minute: number = 0, second: number = 0, millisecond: number = 0): string {
   // Start date: February 6, 2023 (earthquake date)
   const baseDate = new Date('2023-02-06T00:00:00Z');
   baseDate.setDate(baseDate.getDate() + day);
-  baseDate.setHours(hour, minute, 0, 0);
+  baseDate.setHours(hour, minute, second, millisecond);
   return baseDate.toISOString();
 }
 
@@ -147,9 +147,11 @@ function generateEventsForDomain(
     const city = AFFECTED_CITIES[Math.floor(Math.random() * AFFECTED_CITIES.length)];
     const location = randomPointNear(city, 5); // Within 5km of city center
     
-    // Distribute events throughout the day
+    // Distribute events throughout the day with unique timestamps
     const hour = Math.floor((i / eventsPerDay) * 24);
     const minute = Math.floor(Math.random() * 60);
+    const second = Math.floor(Math.random() * 60);
+    const millisecond = Math.floor(Math.random() * 1000);
     
     // Use polygon for area-based events, point for specific locations
     const usePolygon = Math.random() > 0.7 && ['STRUCTURAL', 'LOGISTICS'].includes(domain);
@@ -159,7 +161,7 @@ function generateEventsForDomain(
     
     const event: EventItem = {
       Day: `DAY_${day}`,
-      Timestamp: generateTimestamp(day, hour, minute),
+      Timestamp: generateTimestamp(day, hour, minute, second, millisecond),
       eventId: generateUUID(),
       domain,
       severity: template.severity as Severity,

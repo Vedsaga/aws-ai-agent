@@ -1,0 +1,417 @@
+{
+  "info": {
+    "name": "Command Center Backend API",
+    "description": "API collection for disaster response command center",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "command-center"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "value",
+        "value": "{{api_key}}",
+        "type": "string"
+      },
+      {
+        "key": "key",
+        "value": "x-api-key",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://your-api-id.execute-api.us-east-1.amazonaws.com/prod",
+      "type": "string"
+    },
+    {
+      "key": "api_key",
+      "value": "your-api-key-here",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Data Endpoints",
+      "item": [
+        {
+          "name": "Get Updates - All Events",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/data/updates?since=2023-02-06T00:00:00Z",
+              "host": ["{{base_url}}"],
+              "path": ["data", "updates"],
+              "query": [
+                {
+                  "key": "since",
+                  "value": "2023-02-06T00:00:00Z",
+                  "description": "ISO 8601 timestamp"
+                }
+              ]
+            },
+            "description": "Get all event updates since a specific timestamp"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Updates - Medical Domain",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/data/updates?since=2023-02-06T00:00:00Z&domain=MEDICAL",
+              "host": ["{{base_url}}"],
+              "path": ["data", "updates"],
+              "query": [
+                {
+                  "key": "since",
+                  "value": "2023-02-06T00:00:00Z"
+                },
+                {
+                  "key": "domain",
+                  "value": "MEDICAL"
+                }
+              ]
+            },
+            "description": "Get medical domain updates only"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Updates - Fire Domain",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/data/updates?since=2023-02-06T00:00:00Z&domain=FIRE",
+              "host": ["{{base_url}}"],
+              "path": ["data", "updates"],
+              "query": [
+                {
+                  "key": "since",
+                  "value": "2023-02-06T00:00:00Z"
+                },
+                {
+                  "key": "domain",
+                  "value": "FIRE"
+                }
+              ]
+            },
+            "description": "Get fire domain updates only"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Agent Query Endpoints",
+      "item": [
+        {
+          "name": "Simple Query",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"What are the most urgent needs right now?\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/agent/query",
+              "host": ["{{base_url}}"],
+              "path": ["agent", "query"]
+            },
+            "description": "Simple natural language query"
+          },
+          "response": []
+        },
+        {
+          "name": "Query - Critical Medical Incidents",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Show me all critical medical incidents in the last 6 hours\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/agent/query",
+              "host": ["{{base_url}}"],
+              "path": ["agent", "query"]
+            },
+            "description": "Query for critical medical incidents"
+          },
+          "response": []
+        },
+        {
+          "name": "Query with Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Show me medical incidents in that area\",\n  \"sessionId\": \"session-abc-123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/agent/query",
+              "host": ["{{base_url}}"],
+              "path": ["agent", "query"]
+            },
+            "description": "Query with session continuity"
+          },
+          "response": []
+        },
+        {
+          "name": "Query - Supply Gaps",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Where are the biggest food and water supply gaps?\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/agent/query",
+              "host": ["{{base_url}}"],
+              "path": ["agent", "query"]
+            },
+            "description": "Query for supply gaps"
+          },
+          "response": []
+        },
+        {
+          "name": "Query - Area Summary",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Give me a summary of the situation in Nurdağı\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/agent/query",
+              "host": ["{{base_url}}"],
+              "path": ["agent", "query"]
+            },
+            "description": "Query for area-specific summary"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Agent Action Endpoints",
+      "item": [
+        {
+          "name": "Generate Area Briefing",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"actionId\": \"GENERATE_AREA_BRIEFING\",\n  \"payload\": {\n    \"area\": \"Nurdağı\",\n    \"includeResources\": true\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/agent/action",
+              "host": ["{{base_url}}"],
+              "path": ["agent", "action"]
+            },
+            "description": "Generate comprehensive briefing for specific area"
+          },
+          "response": []
+        },
+        {
+          "name": "Show Critical Incidents",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"actionId\": \"SHOW_CRITICAL_INCIDENTS\",\n  \"payload\": {\n    \"domain\": \"MEDICAL\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/agent/action",
+              "host": ["{{base_url}}"],
+              "path": ["agent", "action"]
+            },
+            "description": "Show all critical incidents, optionally filtered by domain"
+          },
+          "response": []
+        },
+        {
+          "name": "Show Medical Resources",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"actionId\": \"SHOW_MEDICAL_RESOURCES\",\n  \"payload\": {\n    \"radius\": 10\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/agent/action",
+              "host": ["{{base_url}}"],
+              "path": ["agent", "action"]
+            },
+            "description": "Display available medical resources"
+          },
+          "response": []
+        },
+        {
+          "name": "Show Supply Gaps",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"actionId\": \"SHOW_SUPPLY_GAPS\",\n  \"payload\": {\n    \"supplyType\": \"food\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/agent/action",
+              "host": ["{{base_url}}"],
+              "path": ["agent", "action"]
+            },
+            "description": "Identify areas with supply shortages"
+          },
+          "response": []
+        },
+        {
+          "name": "Calculate Route",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"actionId\": \"CALC_ROUTE\",\n  \"payload\": {\n    \"from\": [37.0, 37.5],\n    \"to\": [37.1, 37.6]\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/agent/action",
+              "host": ["{{base_url}}"],
+              "path": ["agent", "action"]
+            },
+            "description": "Calculate route between two locations"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Error Scenarios",
+      "item": [
+        {
+          "name": "Missing Required Parameter",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/data/updates",
+              "host": ["{{base_url}}"],
+              "path": ["data", "updates"]
+            },
+            "description": "Test error handling for missing 'since' parameter"
+          },
+          "response": []
+        },
+        {
+          "name": "Invalid Domain",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/data/updates?since=2023-02-06T00:00:00Z&domain=INVALID",
+              "host": ["{{base_url}}"],
+              "path": ["data", "updates"],
+              "query": [
+                {
+                  "key": "since",
+                  "value": "2023-02-06T00:00:00Z"
+                },
+                {
+                  "key": "domain",
+                  "value": "INVALID"
+                }
+              ]
+            },
+            "description": "Test error handling for invalid domain value"
+          },
+          "response": []
+        },
+        {
+          "name": "Invalid Action ID",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"actionId\": \"INVALID_ACTION\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/agent/action",
+              "host": ["{{base_url}}"],
+              "path": ["agent", "action"]
+            },
+            "description": "Test error handling for invalid action ID"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
