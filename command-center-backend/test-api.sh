@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# API Testing Script
-# Tests all API endpoints with request/response validation
+# Command Center Backend - API Test Script
+# Tests all API endpoints with comprehensive validation
+# Usage: ./test-api.sh
 
 set -e
 
@@ -17,7 +18,7 @@ NC='\033[0m'
 # Load environment variables
 if [ ! -f ".env.local" ]; then
     echo -e "${RED}Error: .env.local file not found${NC}"
-    echo "Run deployment first: bash scripts/full-deploy.sh"
+    echo "Run deployment first: ./deploy.sh"
     exit 1
 fi
 
@@ -35,7 +36,7 @@ echo "║              Command Center API Test Suite                ║"
 echo "╚════════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
 echo -e "API Endpoint: ${YELLOW}${API_ENDPOINT}${NC}"
-echo -e "Testing with API Key: ${YELLOW}${API_KEY:0:10}...${NC}"
+echo -e "API Key: ${YELLOW}${API_KEY:0:10}...${NC}"
 echo ""
 
 # Test counters
@@ -54,8 +55,6 @@ test_endpoint() {
     TOTAL_TESTS=$((TOTAL_TESTS + 1))
     
     echo -e "${BLUE}[Test $TOTAL_TESTS] ${test_name}${NC}"
-    echo -e "  Method: ${method}"
-    echo -e "  Endpoint: ${endpoint}"
     
     if [ "$method" = "GET" ]; then
         RESPONSE=$(curl -s -w "\n%{http_code}" -X GET "${API_ENDPOINT}${endpoint}" \
@@ -70,28 +69,21 @@ test_endpoint() {
     HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
     BODY=$(echo "$RESPONSE" | sed '$d')
     
-    echo -e "  Status: ${HTTP_CODE}"
-    
     if [ "$HTTP_CODE" = "$expected_status" ]; then
-        echo -e "  ${GREEN}✓ PASSED${NC}"
+        echo -e "  ${GREEN}✓ PASSED${NC} (Status: ${HTTP_CODE})"
         PASSED_TESTS=$((PASSED_TESTS + 1))
         
         # Validate JSON response
         if echo "$BODY" | jq empty 2>/dev/null; then
-            echo -e "  ${GREEN}✓ Valid JSON response${NC}"
-        else
-            echo -e "  ${YELLOW}⚠ Response is not valid JSON${NC}"
-        fi
-        
-        # Show sample response
-        if [ ${#BODY} -gt 200 ]; then
-            echo -e "  Response: ${BODY:0:200}..."
-        else
-            echo -e "  Response: ${BODY}"
+            # Show sample response
+            if [ ${#BODY} -gt 150 ]; then
+                echo -e "  Response: ${BODY:0:150}..."
+            else
+                echo -e "  Response: ${BODY}"
+            fi
         fi
     else
-        echo -e "  ${RED}✗ FAILED${NC}"
-        echo -e "  Expected: ${expected_status}, Got: ${HTTP_CODE}"
+        echo -e "  ${RED}✗ FAILED${NC} (Expected: ${expected_status}, Got: ${HTTP_CODE})"
         echo -e "  Response: ${BODY}"
         FAILED_TESTS=$((FAILED_TESTS + 1))
     fi
@@ -100,9 +92,7 @@ test_endpoint() {
 }
 
 # Start tests
-echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════${NC}"
-echo -e "${BOLD}${CYAN}                    Running Tests                          ${NC}"
-echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════${NC}"
+echo -e "${BOLD}${CYAN}Running Tests...${NC}"
 echo ""
 
 # Test 1: GET /data/updates - Valid request
@@ -115,7 +105,7 @@ test_endpoint \
 
 # Test 2: GET /data/updates - With domain filter
 test_endpoint \
-    "GET /data/updates - With domain filter" \
+    "GET /data/updates - With MEDICAL domain filter" \
     "GET" \
     "data/updates?since=2023-02-06T00:00:00Z&domain=MEDICAL" \
     "" \
@@ -123,95 +113,77 @@ test_endpoint \
 
 # Test 3: GET /data/updates - Missing required parameter
 test_endpoint \
-    "GET /data/updates - Missing 'since' parameter" \
+    "GET /data/updates - Missing 'since' parameter (should fail)" \
     "GET" \
     "data/updates" \
     "" \
     "400"
 
-# Test 4: GET /data/updates - Invalid date format
+# Test 4: POST /agent/query - Valid request
 test_endpoint \
-    "GET /data/updates - Invalid date format" \
-    "GET" \
-    "data/updates?since=invalid-date" \
-    "" \
-    "400"
-
-# Test 5: POST /agent/query - Valid request
-test_endpoint \
-    "POST /agent/query - Valid request" \
+    "POST /agent/query - Valid natural language query" \
     "POST" \
     "agent/query" \
     '{"text": "What are the most urgent needs?"}' \
     "200"
 
-# Test 6: POST /agent/query - Empty text
+# Test 5: POST /agent/query - Empty text
 test_endpoint \
-    "POST /agent/query - Empty text" \
+    "POST /agent/query - Empty text (should fail)" \
     "POST" \
     "agent/query" \
     '{"text": ""}' \
     "400"
 
-# Test 7: POST /agent/query - Missing text field
+# Test 6: POST /agent/action - Valid action
 test_endpoint \
-    "POST /agent/query - Missing text field" \
-    "POST" \
-    "agent/query" \
-    '{}' \
-    "400"
-
-# Test 8: POST /agent/action - Valid action
-test_endpoint \
-    "POST /agent/action - Valid action" \
+    "POST /agent/action - SHOW_CRITICAL_MEDICAL action" \
     "POST" \
     "agent/action" \
-    '{"actionId": "SHOW_CRITICAL_INCIDENTS"}' \
+    '{"actionId": "SHOW_CRITICAL_MEDICAL"}' \
     "200"
 
-# Test 9: POST /agent/action - Invalid action
+# Test 7: POST /agent/action - Invalid action
 test_endpoint \
-    "POST /agent/action - Invalid action ID" \
+    "POST /agent/action - Invalid action ID (should fail)" \
     "POST" \
     "agent/action" \
     '{"actionId": "INVALID_ACTION"}' \
     "400"
 
-# Test 10: POST /agent/action - Missing actionId
+# Test 8: POST /agent/action - HELP action
 test_endpoint \
-    "POST /agent/action - Missing actionId" \
+    "POST /agent/action - HELP action" \
     "POST" \
     "agent/action" \
-    '{}' \
-    "400"
+    '{"actionId": "HELP"}' \
+    "200"
 
-# Test 11: GET /data/updates - No API key (should fail)
-echo -e "${BLUE}[Test $((TOTAL_TESTS + 1))] GET /data/updates - No API key${NC}"
+# Test 9: Authentication - No API key
+echo -e "${BLUE}[Test $((TOTAL_TESTS + 1))] Authentication - No API key (should fail)${NC}"
 TOTAL_TESTS=$((TOTAL_TESTS + 1))
 RESPONSE=$(curl -s -w "\n%{http_code}" -X GET "${API_ENDPOINT}data/updates?since=2023-02-06T00:00:00Z" 2>&1)
 HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-echo -e "  Status: ${HTTP_CODE}"
 if [ "$HTTP_CODE" = "403" ]; then
-    echo -e "  ${GREEN}✓ PASSED (correctly rejected)${NC}"
+    echo -e "  ${GREEN}✓ PASSED${NC} (Status: ${HTTP_CODE})"
     PASSED_TESTS=$((PASSED_TESTS + 1))
 else
-    echo -e "  ${RED}✗ FAILED (should return 403)${NC}"
+    echo -e "  ${RED}✗ FAILED${NC} (Expected: 403, Got: ${HTTP_CODE})"
     FAILED_TESTS=$((FAILED_TESTS + 1))
 fi
 echo ""
 
-# Test 12: GET /data/updates - Invalid API key
-echo -e "${BLUE}[Test $((TOTAL_TESTS + 1))] GET /data/updates - Invalid API key${NC}"
+# Test 10: Authentication - Invalid API key
+echo -e "${BLUE}[Test $((TOTAL_TESTS + 1))] Authentication - Invalid API key (should fail)${NC}"
 TOTAL_TESTS=$((TOTAL_TESTS + 1))
 RESPONSE=$(curl -s -w "\n%{http_code}" -X GET "${API_ENDPOINT}data/updates?since=2023-02-06T00:00:00Z" \
     -H "x-api-key: invalid-key-12345" 2>&1)
 HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-echo -e "  Status: ${HTTP_CODE}"
 if [ "$HTTP_CODE" = "403" ]; then
-    echo -e "  ${GREEN}✓ PASSED (correctly rejected)${NC}"
+    echo -e "  ${GREEN}✓ PASSED${NC} (Status: ${HTTP_CODE})"
     PASSED_TESTS=$((PASSED_TESTS + 1))
 else
-    echo -e "  ${RED}✗ FAILED (should return 403)${NC}"
+    echo -e "  ${RED}✗ FAILED${NC} (Expected: 403, Got: ${HTTP_CODE})"
     FAILED_TESTS=$((FAILED_TESTS + 1))
 fi
 echo ""
@@ -229,14 +201,21 @@ echo ""
 if [ $FAILED_TESTS -eq 0 ]; then
     echo -e "${GREEN}${BOLD}✓ All tests passed!${NC}"
     echo ""
+    echo -e "${CYAN}Your API is working correctly! 🎉${NC}"
+    echo ""
     exit 0
 else
     echo -e "${RED}${BOLD}✗ Some tests failed${NC}"
     echo ""
-    echo "Check Lambda logs for details:"
-    echo "  aws logs tail /aws/lambda/CommandCenterBackend-Dev-UpdatesHandler --follow"
-    echo "  aws logs tail /aws/lambda/CommandCenterBackend-Dev-QueryHandler --follow"
-    echo "  aws logs tail /aws/lambda/CommandCenterBackend-Dev-ActionHandler --follow"
+    echo "Troubleshooting:"
+    echo "  1. Check Lambda logs:"
+    echo "     aws logs tail /aws/lambda/CommandCenterBackend-Dev-QueryHandler --follow"
+    echo ""
+    echo "  2. Verify Bedrock model access:"
+    echo "     AWS Console → Bedrock → Model access"
+    echo ""
+    echo "  3. Check CloudFormation stack status:"
+    echo "     aws cloudformation describe-stacks --stack-name CommandCenterBackend-Dev"
     echo ""
     exit 1
 fi

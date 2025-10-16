@@ -106,6 +106,7 @@ export class CommandCenterBackendStack extends cdk.Stack {
       ],
       resources: [
         `arn:aws:bedrock:${config.region}:${config.account}:agent/*`,
+        `arn:aws:bedrock:${config.region}:${config.account}:agent-alias/*`,
         `arn:aws:bedrock:${config.region}::foundation-model/*`,
       ],
     }));
@@ -129,6 +130,7 @@ export class CommandCenterBackendStack extends cdk.Stack {
       ],
       resources: [
         `arn:aws:bedrock:${config.region}:${config.account}:agent/*`,
+        `arn:aws:bedrock:${config.region}:${config.account}:agent-alias/*`,
         `arn:aws:bedrock:${config.region}::foundation-model/*`,
       ],
     }));

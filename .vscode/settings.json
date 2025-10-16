@@ -1,3 +1,7 @@
 {
-    "kiroAgent.configureMCP": "Disabled"
+    "kiroAgent.configureMCP": "Enabled",
+    "kiroAgent.agentAutonomy": "Supervised",
+    "kiroAgent.trustReadOnlyCommands": true,
+    "kiroAgent.notifications.agent.failure": true,
+    "kiroAgent.notifications.agent.success": true
 }
