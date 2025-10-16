@@ -12,7 +12,7 @@ export const getEnvironmentConfig = (): EnvironmentConfig => {
   const stage = (process.env.STAGE || 'dev') as 'dev' | 'staging' | 'prod';
 
   // Default Bedrock model - can be overridden via BEDROCK_MODEL env var
-  const defaultModel = 'anthropic.claude-3-sonnet-20240229-v1:0';
+  const defaultModel = 'amazon.nova-pro-v1:0';
   const bedrockModel = process.env.BEDROCK_MODEL || defaultModel;
 
   const configs: Record<string, EnvironmentConfig> = {

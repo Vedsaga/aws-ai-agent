@@ -26,7 +26,7 @@ The Command Center Backend API provides real-time event updates and AI-powered q
 - AWS API Gateway (REST API)
 - AWS Lambda (Serverless functions)
 - Amazon DynamoDB (Event storage)
-- Amazon Bedrock (AI agent with Claude 3 Sonnet)
+- Amazon Bedrock (AI agent with OpenAI GPT-4o)
 
 **Data Source**: 7-day pre-processed earthquake response simulation timeline
 
@@ -175,7 +175,7 @@ Frontend            API Gateway         Lambda          Bedrock Agent      Datab
    │                     │                 ├──────────────────>│                  │
    │                     │                 │                   │                  │
    │                     │                 │                   │  Parse query     │
-   │                     │                 │                   │  with Claude 3   │
+   │                     │                 │                   │  with GPT-4o     │
    │                     │                 │                   │──────────┐       │
    │                     │                 │                   │          │       │
    │                     │                 │                   │<─────────┘       │
@@ -191,7 +191,7 @@ Frontend            API Gateway         Lambda          Bedrock Agent      Datab
    │                     │                 │                   │                  │
    │                     │                 │                   │  Generate        │
    │                     │                 │                   │  response with   │
-   │                     │                 │                   │  Claude 3        │
+   │                     │                 │                   │  GPT-4o          │
    │                     │                 │                   │──────────┐       │
    │                     │                 │                   │          │       │
    │                     │                 │                   │<─────────┘       │

@@ -8,7 +8,7 @@ Complete guide for deploying the Command Center Backend to AWS.
 
 ```bash
 # 1. Request Bedrock access (AWS Console - one time only)
-# Go to: https://console.aws.amazon.com/bedrock/ → Model access → Request Claude 3 Sonnet
+# Go to: https://console.aws.amazon.com/bedrock/ → Model access → Request OpenAI GPT-4o
 
 # 2. Deploy everything
 ./deploy.sh
@@ -51,7 +51,7 @@ aws sts get-caller-identity
 
 1. Go to [AWS Console → Bedrock → Model access](https://console.aws.amazon.com/bedrock/)
 2. Click **"Manage model access"**
-3. Select **"Claude 3 Sonnet"** (anthropic.claude-3-sonnet-20240229-v1:0)
+3. Select **"OpenAI GPT-4o"** (openai.gpt-4o-2024-11-20-v1)
 4. Click **"Request model access"**
 5. Wait for approval (usually instant)
 
@@ -316,11 +316,11 @@ curl -X GET "${API_ENDPOINT}/data/updates?since=2023-02-06T00:00:00Z" \
 
 **Symptom**: `/agent/query` returns error about Bedrock access
 
-**Cause**: Claude 3 Sonnet model access not requested
+**Cause**: OpenAI GPT-4o model access not requested
 
 **Solution**:
 1. Go to [AWS Console → Bedrock → Model access](https://console.aws.amazon.com/bedrock/)
-2. Request access to **Claude 3 Sonnet**
+2. Request access to **OpenAI GPT-4o**
 3. Wait for approval (usually instant)
 4. Redeploy: `./deploy.sh --skip-populate`
 
@@ -525,7 +525,7 @@ cdk destroy                      # Remove all resources
 - [ ] Node.js 18+ installed
 - [ ] AWS CLI configured (`aws sts get-caller-identity`)
 - [ ] AWS CDK installed globally (`cdk --version`)
-- [ ] Bedrock Claude 3 Sonnet access requested
+- [ ] Bedrock OpenAI GPT-4o access requested
 - [ ] IAM permissions verified
 
 ### During Deployment

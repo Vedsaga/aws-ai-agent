@@ -6,20 +6,17 @@ import { getEnvironmentConfig } from '../config/environment';
 
 const app = new cdk.App();
 
+// Get environment configuration
 const config = getEnvironmentConfig();
 
+// Create the stack
 new CommandCenterBackendStack(app, config.stackName, {
+  config,
   env: {
-    account: config.account,
+    account: config.account || process.env.CDK_DEFAULT_ACCOUNT,
     region: config.region,
   },
-  config,
-  description: `Command Center Backend API - ${config.stage} environment`,
-  tags: {
-    Environment: config.stage,
-    Project: 'CommandCenter',
-    ManagedBy: 'CDK',
-  },
+  description: `Command Center Backend - ${config.stage} environment`,
 });
 
 app.synth();

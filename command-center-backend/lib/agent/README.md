@@ -25,7 +25,7 @@ OpenAPI 3.0 schema that defines the `databaseQueryTool` Action Group. This schem
 
 The Bedrock Agent is configured in `command-center-backend-stack.ts` with:
 
-- **Model**: Claude 3 Sonnet (anthropic.claude-3-sonnet-20240229-v1:0)
+- **Model**: OpenAI GPT-4o (openai.gpt-4o-2024-11-20-v1)
 - **Instruction Prompt**: Detailed persona and guidelines for disaster response queries
 - **Action Group**: databaseQueryTool for querying the simulation database
 - **Timeout**: 10 minutes idle session TTL

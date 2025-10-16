@@ -1,20 +1,86 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { 
-  BedrockAgentRuntimeClient, 
-  InvokeAgentCommand,
-  InvokeAgentCommandInput,
-} from '@aws-sdk/client-bedrock-agent-runtime';
+import {
+  BedrockRuntimeClient,
+  ConverseCommand,
+  ConverseCommandInput,
+  Tool,
+  ToolResultBlock,
+} from '@aws-sdk/client-bedrock-runtime';
 import { QueryRequestSchema, QueryResponse, ErrorResponse } from '../types/api';
+import { queryDatabase } from '../data-access/database-query';
 
-// Initialize Bedrock Agent Runtime client
-const bedrockClient = new BedrockAgentRuntimeClient({
+// Initialize Bedrock Runtime client for direct model invocation
+const bedrockClient = new BedrockRuntimeClient({
   region: process.env.AWS_REGION || 'us-east-1',
 });
 
 // Environment variables
-const AGENT_ID = process.env.AGENT_ID;
-const AGENT_ALIAS_ID = process.env.AGENT_ALIAS_ID;
+const BEDROCK_MODEL = process.env.BEDROCK_MODEL || 'amazon.nova-pro-v1:0';
+const TABLE_NAME = process.env.TABLE_NAME;
 const LOG_LEVEL = process.env.LOG_LEVEL || 'INFO';
+
+// System prompt for the AI agent
+const SYSTEM_PROMPT = `You are an AI assistant for a disaster response Command Center. Your role is to help operators understand the current situation by answering questions about incidents, resources, and response activities during the 2023 Turkey earthquake response simulation.
+
+You have access to a database of events from a 7-day earthquake response simulation. Use the queryDatabase tool to retrieve relevant data when needed.
+
+When answering questions:
+1. Be concise and factual
+2. Include specific numbers and locations when available
+3. Highlight critical or urgent situations
+4. Autonomously control the map visualization - decide optimal zoom levels, generate density polygons, and center the map to best answer the query
+5. If the data doesn't exist or you're unsure, say so clearly
+
+Your response should be in JSON format with:
+- chatResponse: Your natural language answer
+- mapAction: "REPLACE" (clear existing layers) or "APPEND" (add to existing)
+- mapLayers: Array of GeoJSON layers with styling (Points, Polygons, LineStrings)
+- viewState: Map bounds or center/zoom to focus on relevant area (optional)
+- uiContext: Suggested follow-up actions for the operator (optional)
+
+When creating map layers:
+- Use appropriate icons for Point layers (BUILDING_COLLAPSE, FOOD_SUPPLY, DONATION_POINT, MEDICAL_FACILITY, FIRE_INCIDENT, STRUCTURAL_DAMAGE, LOGISTICS_HUB, COMMUNICATION_TOWER)
+- Use color coding for severity (CRITICAL=#DC2626, HIGH=#F59E0B, MEDIUM=#3B82F6, LOW=#10B981)
+- For demand zones or analysis areas, use Polygon layers with semi-transparent fills
+- Always include meaningful properties in GeoJSON features for tooltips`;
+
+// Define the database query tool
+const DATABASE_QUERY_TOOL: Tool = {
+  toolSpec: {
+    name: 'queryDatabase',
+    description: 'Query the simulation database for events based on domain, severity, time range, and location filters',
+    inputSchema: {
+      json: {
+        type: 'object',
+        properties: {
+          domain: {
+            type: 'string',
+            enum: ['MEDICAL', 'FIRE', 'LOGISTICS', 'COMMUNICATION', 'STRUCTURAL'],
+            description: 'Filter by event domain/category',
+          },
+          severity: {
+            type: 'string',
+            enum: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'],
+            description: 'Filter by severity level',
+          },
+          startTime: {
+            type: 'string',
+            description: 'Start of time range (ISO 8601 format)',
+          },
+          endTime: {
+            type: 'string',
+            description: 'End of time range (ISO 8601 format)',
+          },
+          limit: {
+            type: 'number',
+            description: 'Maximum number of results to return (default: 100)',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+};
 
 /**
  * Lambda handler for POST /agent/query
@@ -37,19 +103,18 @@ export async function handler(
 
   try {
     // Validate environment variables
-    if (!AGENT_ID || !AGENT_ALIAS_ID) {
+    if (!TABLE_NAME) {
       console.error('Missing required environment variables', {
-        hasAgentId: !!AGENT_ID,
-        hasAgentAliasId: !!AGENT_ALIAS_ID,
+        hasTableName: !!TABLE_NAME,
       });
-      
+
       const errorResponse: ErrorResponse = {
         error: {
           code: 'CONFIGURATION_ERROR',
-          message: 'Bedrock Agent is not properly configured',
+          message: 'Database configuration is missing',
         },
       };
-      
+
       return {
         statusCode: 500,
         headers: {
@@ -68,7 +133,7 @@ export async function handler(
           message: 'Request body is required',
         },
       };
-      
+
       return {
         statusCode: 400,
         headers: {
@@ -84,14 +149,14 @@ export async function handler(
       requestBody = JSON.parse(event.body);
     } catch (parseError) {
       console.error('Failed to parse request body', { error: parseError });
-      
+
       const errorResponse: ErrorResponse = {
         error: {
           code: 'INVALID_REQUEST',
           message: 'Request body must be valid JSON',
         },
       };
-      
+
       return {
         statusCode: 400,
         headers: {
@@ -104,13 +169,13 @@ export async function handler(
 
     // Validate using Zod schema
     const validationResult = QueryRequestSchema.safeParse(requestBody);
-    
+
     if (!validationResult.success) {
       console.error('Validation failed', {
         errors: validationResult.error.issues,
         requestBody,
       });
-      
+
       const errorResponse: ErrorResponse = {
         error: {
           code: 'INVALID_REQUEST',
@@ -118,7 +183,7 @@ export async function handler(
           details: validationResult.error.issues,
         },
       };
-      
+
       return {
         statusCode: 400,
         headers: {
@@ -137,107 +202,25 @@ export async function handler(
       hasMapState: !!currentMapState,
     });
 
-    // Prepare input for Bedrock Agent
-    const agentInput: InvokeAgentCommandInput = {
-      agentId: AGENT_ID,
-      agentAliasId: AGENT_ALIAS_ID,
-      sessionId: sessionId || `session-${Date.now()}-${Math.random().toString(36).substring(7)}`,
-      inputText: text,
-    };
-
-    // Add current map state as context if provided
+    // Build user message with context
+    let userMessage = text;
     if (currentMapState) {
-      agentInput.inputText = `${text}\n\nCurrent map context: center at [${currentMapState.center[0]}, ${currentMapState.center[1]}], zoom level ${currentMapState.zoom}`;
-    } else {
-      agentInput.inputText = text;
+      userMessage += `\n\nCurrent map context: center at [${currentMapState.center[0]}, ${currentMapState.center[1]}], zoom level ${currentMapState.zoom}`;
     }
 
-    console.log('Invoking Bedrock Agent', {
-      agentId: AGENT_ID,
-      agentAliasId: AGENT_ALIAS_ID,
-      sessionId: agentInput.sessionId,
-      inputLength: agentInput.inputText.length,
+    console.log('Invoking Nova model with Converse API', {
+      model: BEDROCK_MODEL,
+      messageLength: userMessage.length,
     });
 
-    // Invoke Bedrock Agent with timeout handling
+    // Invoke Nova model with tool calling using Converse API
     const startTime = Date.now();
-    const AGENT_TIMEOUT_MS = 55000; // 55 seconds (Lambda timeout is 60s)
-    
-    let response: any;
-    let agentResponse: string;
-    
-    try {
-      const command = new InvokeAgentCommand(agentInput);
-      
-      // Create a timeout promise
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Agent invocation timeout')), AGENT_TIMEOUT_MS);
-      });
-      
-      // Race between agent invocation and timeout
-      response = await Promise.race([
-        bedrockClient.send(command),
-        timeoutPromise,
-      ]);
-      
-      const invocationDuration = Date.now() - startTime;
+    const agentResponse = await invokeModelWithTools(userMessage);
 
-      console.log('Bedrock Agent invoked successfully', {
-        invocationDuration,
-        hasCompletion: !!response.completion,
-      });
-
-      // Process agent response stream
-      agentResponse = await processAgentResponse(response, startTime, AGENT_TIMEOUT_MS);
-
-      console.log('Agent response processed', {
-        responseLength: agentResponse.length,
-        processingDuration: Date.now() - startTime,
-      });
-      
-    } catch (agentError) {
-      // Handle agent-specific errors
-      const duration = Date.now() - startTime;
-      
-      console.error('Error invoking Bedrock Agent', {
-        error: agentError instanceof Error ? agentError.message : String(agentError),
-        duration,
-        agentId: AGENT_ID,
-        agentAliasId: AGENT_ALIAS_ID,
-      });
-      
-      // Check if it's a timeout
-      if (agentError instanceof Error && agentError.message.includes('timeout')) {
-        // Return partial response with timeout explanation
-        const partialResponse: QueryResponse = {
-          simulationTime: calculateSimulationTime(new Date().toISOString()),
-          timestamp: new Date().toISOString(),
-          chatResponse: 'The query is taking longer than expected. Please try rephrasing your question or breaking it into smaller queries.',
-          mapAction: 'REPLACE',
-          mapLayers: [],
-          uiContext: {
-            suggestedActions: [
-              {
-                label: 'Try a simpler query',
-                actionId: 'HELP',
-              },
-            ],
-          },
-        };
-        
-        return {
-          statusCode: 200,
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          },
-          body: JSON.stringify(partialResponse),
-        };
-      }
-      
-      // Re-throw other errors to be handled by the main error handler
-      throw agentError;
-    }
+    console.log('Model response received', {
+      responseLength: agentResponse.length,
+      duration: Date.now() - startTime,
+    });
 
     // Transform agent output to API response format
     const queryResponse = transformAgentOutput(agentResponse, text);
@@ -263,84 +246,156 @@ export async function handler(
 }
 
 /**
- * Process the streaming response from Bedrock Agent
+ * Invoke Nova model with tool calling capability
+ * Implements agentic loop: model -> tool call -> model -> response
  * 
- * @param response - Response from InvokeAgentCommand
- * @param startTime - Start time of the request
- * @param timeoutMs - Timeout in milliseconds
- * @returns Complete agent response text
+ * @param userMessage - User's query
+ * @returns Final model response as string
  */
-async function processAgentResponse(
-  response: any, 
-  startTime: number, 
-  timeoutMs: number
-): Promise<string> {
-  let completeResponse = '';
-  let chunkCount = 0;
+async function invokeModelWithTools(userMessage: string): Promise<string> {
+  const messages: any[] = [
+    {
+      role: 'user',
+      content: [{ text: userMessage }],
+    },
+  ];
 
-  try {
-    // The response.completion is an async iterable stream
-    if (response.completion) {
-      for await (const event of response.completion) {
-        // Check if we've exceeded the timeout
-        const elapsed = Date.now() - startTime;
-        if (elapsed > timeoutMs) {
-          console.warn('Stream processing timeout', {
-            elapsed,
-            timeoutMs,
-            chunkCount,
-            partialResponseLength: completeResponse.length,
-          });
-          
-          // Return partial response if we have any
-          if (completeResponse) {
-            return completeResponse;
-          }
-          
-          throw new Error('Stream processing timeout');
-        }
-        
-        if (event.chunk && event.chunk.bytes) {
-          // Decode the bytes to string
-          const chunk = new TextDecoder().decode(event.chunk.bytes);
-          completeResponse += chunk;
-          chunkCount++;
-          
-          if (LOG_LEVEL === 'DEBUG') {
-            console.log('Received chunk', { 
-              chunkLength: chunk.length,
-              chunkCount,
-              totalLength: completeResponse.length,
+  const MAX_ITERATIONS = 5; // Prevent infinite loops
+  let iteration = 0;
+
+  while (iteration < MAX_ITERATIONS) {
+    iteration++;
+
+    console.log(`Agentic loop iteration ${iteration}`, {
+      messageCount: messages.length,
+    });
+
+    // Prepare Converse API input
+    const input: ConverseCommandInput = {
+      modelId: BEDROCK_MODEL,
+      messages,
+      system: [{ text: SYSTEM_PROMPT }],
+      toolConfig: {
+        tools: [DATABASE_QUERY_TOOL],
+      },
+      inferenceConfig: {
+        maxTokens: 4096,
+        temperature: 0.7,
+        topP: 0.9,
+      },
+    };
+
+    // Invoke the model
+    const command = new ConverseCommand(input);
+    const response = await bedrockClient.send(command);
+
+    console.log('Model response received', {
+      stopReason: response.stopReason,
+      usage: response.usage,
+    });
+
+    // Check stop reason
+    if (response.stopReason === 'end_turn') {
+      // Model finished without tool calls
+      const textContent = response.output?.message?.content?.find((c: any) => c.text);
+      return textContent?.text || 'No response generated';
+    }
+
+    if (response.stopReason === 'tool_use') {
+      // Model wants to use a tool
+      console.log('Model requested tool use');
+
+      // Add assistant message to conversation
+      messages.push({
+        role: 'assistant',
+        content: response.output?.message?.content || [],
+      });
+
+      // Execute tool calls
+      const toolResults: ToolResultBlock[] = [];
+      const toolUses = response.output?.message?.content?.filter((c: any) => c.toolUse) || [];
+
+      for (const toolUse of toolUses) {
+        const tool = toolUse.toolUse;
+        if (!tool) continue; // Skip if tool is undefined
+
+        console.log('Executing tool', {
+          toolName: tool.name,
+          toolUseId: tool.toolUseId,
+          input: tool.input,
+        });
+
+        try {
+          let toolResult: any;
+
+          if (tool.name === 'queryDatabase') {
+            // Execute database query
+            // Cast tool.input to the expected type
+            const input = tool.input as Record<string, any>;
+            toolResult = await queryDatabase({
+              tableName: TABLE_NAME!,
+              domain: input.domain,
+              severity: input.severity,
+              startTime: input.startTime,
+              endTime: input.endTime,
+              limit: input.limit || 100,
             });
+          } else {
+            toolResult = { error: `Unknown tool: ${tool.name}` };
           }
+
+          console.log('Tool execution completed', {
+            toolName: tool.name,
+            resultSize: JSON.stringify(toolResult).length,
+          });
+
+          toolResults.push({
+            toolUseId: tool.toolUseId,
+            content: [{ json: toolResult }],
+          });
+        } catch (toolError) {
+          console.error('Tool execution failed', {
+            toolName: tool.name,
+            error: toolError instanceof Error ? toolError.message : String(toolError),
+          });
+
+          toolResults.push({
+            toolUseId: tool.toolUseId,
+            content: [
+              {
+                text: `Error executing tool: ${toolError instanceof Error ? toolError.message : String(toolError)}`,
+              },
+            ],
+            status: 'error',
+          });
         }
       }
-    }
 
-    console.log('Stream processing completed', {
-      chunkCount,
-      totalLength: completeResponse.length,
-      duration: Date.now() - startTime,
-    });
-
-    return completeResponse;
-  } catch (error) {
-    console.error('Error processing agent response stream', {
-      error: error instanceof Error ? error.message : String(error),
-      partialResponseLength: completeResponse.length,
-      chunkCount,
-    });
-    
-    // Return partial response if available
-    if (completeResponse && completeResponse.length > 0) {
-      console.log('Returning partial response due to error', {
-        partialLength: completeResponse.length,
+      // Add tool results to conversation
+      messages.push({
+        role: 'user',
+        content: toolResults,
       });
-      return completeResponse;
+
+      // Continue the loop to get model's response with tool results
+      continue;
     }
-    
-    throw error;
+
+    // Handle other stop reasons
+    console.warn('Unexpected stop reason', {
+      stopReason: response.stopReason,
+    });
+
+    const textContent = response.output?.message?.content?.find((c: any) => c.text);
+    return textContent?.text || 'Unable to generate response';
   }
+
+  // Max iterations reached
+  console.warn('Max agentic loop iterations reached', {
+    maxIterations: MAX_ITERATIONS,
+  });
+
+  return 'Query processing took too many steps. Please try a simpler question.';
 }
 
 /**
@@ -355,12 +410,12 @@ async function processAgentResponse(
  */
 function transformAgentOutput(agentResponse: string, originalQuery: string): QueryResponse {
   const timestamp = new Date().toISOString();
-  
+
   // Calculate simulation time based on current timestamp
   // For now, use a simple placeholder. In production, this would be calculated
   // based on the simulation timeline state
   const simulationTime = calculateSimulationTime(timestamp);
-  
+
   // Try to parse structured response from agent
   // The agent may return JSON-formatted data or plain text
   let parsedResponse: any = null;
@@ -375,13 +430,13 @@ function transformAgentOutput(agentResponse: string, originalQuery: string): Que
   try {
     // Try to extract JSON from the response
     // The agent might wrap JSON in markdown code blocks or return it directly
-    const jsonMatch = agentResponse.match(/```json\s*([\s\S]*?)\s*```/) || 
-                      agentResponse.match(/\{[\s\S]*\}/);
-    
+    const jsonMatch = agentResponse.match(/```json\s*([\s\S]*?)\s*```/) ||
+      agentResponse.match(/\{[\s\S]*\}/);
+
     if (jsonMatch) {
       const jsonStr = jsonMatch[1] || jsonMatch[0];
       parsedResponse = JSON.parse(jsonStr);
-      
+
       // Extract structured fields if present
       if (parsedResponse.chatResponse) {
         chatResponse = parsedResponse.chatResponse;
@@ -404,7 +459,7 @@ function transformAgentOutput(agentResponse: string, originalQuery: string): Que
       if (parsedResponse.tabularData) {
         tabularData = parsedResponse.tabularData;
       }
-      
+
       // If chatResponse was in JSON, remove the JSON block from the text
       if (jsonMatch[1]) {
         chatResponse = agentResponse.replace(/```json\s*[\s\S]*?\s*```/, '').trim();
@@ -468,12 +523,12 @@ function calculateSimulationTime(timestamp: string): string {
   const date = new Date(timestamp);
   const hours = date.getUTCHours();
   const minutes = date.getUTCMinutes();
-  
+
   // Simple mapping: use current hour to determine simulation day
   const day = Math.floor(hours / 4) % 7; // Cycle through 7 days
   const simHour = hours % 24;
   const simMinute = minutes;
-  
+
   return `Day ${day}, ${simHour.toString().padStart(2, '0')}:${simMinute.toString().padStart(2, '0')}`;
 }
 
@@ -495,7 +550,7 @@ function handleError(error: unknown, event: APIGatewayProxyEvent): APIGatewayPro
     errorDetails.errorName = error.name;
     errorDetails.errorMessage = error.message;
     errorDetails.errorStack = error.stack;
-    
+
     // Log AWS SDK specific error properties
     if ('$metadata' in error) {
       errorDetails.awsMetadata = (error as any).$metadata;
@@ -517,69 +572,69 @@ function handleError(error: unknown, event: APIGatewayProxyEvent): APIGatewayPro
   if (error instanceof Error) {
     const errorMsg = error.message.toLowerCase();
     const errorName = error.name.toLowerCase();
-    
+
     // Configuration errors
-    if (errorMsg.includes('agent_id') || errorMsg.includes('agent_alias_id')) {
+    if (errorMsg.includes('table_name') || errorMsg.includes('model')) {
       errorCode = 'CONFIGURATION_ERROR';
-      errorMessage = 'Bedrock Agent configuration error';
+      errorMessage = 'Service configuration error';
       shouldRetry = false;
     }
     // Access/Authorization errors
-    else if (errorMsg.includes('accessdenied') || 
-             errorMsg.includes('unauthorizedexception') ||
-             errorName.includes('accessdenied')) {
+    else if (errorMsg.includes('accessdenied') ||
+      errorMsg.includes('unauthorizedexception') ||
+      errorName.includes('accessdenied')) {
       statusCode = 403;
       errorCode = 'AGENT_ERROR';
-      errorMessage = 'Failed to invoke Bedrock Agent: Access denied';
+      errorMessage = 'Failed to invoke AI model: Access denied';
       shouldRetry = false;
     }
     // Throttling errors
-    else if (errorMsg.includes('throttling') || 
-             errorMsg.includes('too many requests') ||
-             errorName.includes('throttling')) {
+    else if (errorMsg.includes('throttling') ||
+      errorMsg.includes('too many requests') ||
+      errorName.includes('throttling')) {
       statusCode = 429;
       errorCode = 'RATE_LIMIT_EXCEEDED';
-      errorMessage = 'Too many requests to Bedrock Agent. Please try again in a moment.';
+      errorMessage = 'Too many requests to AI service. Please try again in a moment.';
       shouldRetry = true;
     }
     // Timeout errors
-    else if (errorMsg.includes('timeout') || 
-             errorMsg.includes('timed out') ||
-             errorName.includes('timeout')) {
+    else if (errorMsg.includes('timeout') ||
+      errorMsg.includes('timed out') ||
+      errorName.includes('timeout')) {
       statusCode = 504;
       errorCode = 'TIMEOUT_ERROR';
-      errorMessage = 'Bedrock Agent request timed out. Please try a simpler query.';
+      errorMessage = 'AI model request timed out. Please try a simpler query.';
       shouldRetry = true;
     }
     // Validation errors
-    else if (errorMsg.includes('validation') || 
-             errorName.includes('validation')) {
+    else if (errorMsg.includes('validation') ||
+      errorName.includes('validation')) {
       statusCode = 400;
       errorCode = 'AGENT_ERROR';
-      errorMessage = 'Invalid request to Bedrock Agent';
+      errorMessage = `Invalid request to AI model: ${error.message}`;
       shouldRetry = false;
     }
     // Resource not found
-    else if (errorName.includes('resourcenotfound') || 
-             errorMsg.includes('not found')) {
+    else if (errorName.includes('resourcenotfound') ||
+      errorMsg.includes('not found')) {
       statusCode = 404;
       errorCode = 'AGENT_ERROR';
-      errorMessage = 'Bedrock Agent not found. Please check configuration.';
+      errorMessage = 'AI model not found. Please check configuration.';
       shouldRetry = false;
     }
     // Service unavailable
-    else if (errorMsg.includes('service unavailable') || 
-             errorMsg.includes('503')) {
+    else if (errorMsg.includes('service unavailable') ||
+      errorMsg.includes('503')) {
       statusCode = 503;
       errorCode = 'AGENT_ERROR';
-      errorMessage = 'Bedrock Agent service temporarily unavailable';
+      errorMessage = 'AI service temporarily unavailable';
       shouldRetry = true;
     }
     // Model errors
     else if (errorMsg.includes('model') && errorMsg.includes('error')) {
       statusCode = 500;
       errorCode = 'AGENT_ERROR';
-      errorMessage = 'Bedrock Agent model error. Please try again.';
+      errorMessage = 'AI model error. Please try again.';
       shouldRetry = true;
     }
   }

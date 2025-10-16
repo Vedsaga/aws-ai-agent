@@ -24,18 +24,11 @@ export class CommandCenterBackendStack extends cdk.Stack {
   private updatesLambdaRole: iam.Role;
   private queryLambdaRole: iam.Role;
   private actionLambdaRole: iam.Role;
-  private toolLambdaRole: iam.Role;
-  private bedrockAgentRole: iam.Role;
 
   // Lambda Functions
   public readonly updatesHandlerLambda?: lambda.Function;
   public readonly queryHandlerLambda?: lambda.Function;
   public readonly actionHandlerLambda?: lambda.Function;
-  public readonly databaseQueryToolLambda?: lambda.Function;
-
-  // Bedrock Agent
-  public readonly bedrockAgent?: bedrock.CfnAgent;
-  public readonly bedrockAgentAlias?: bedrock.CfnAgentAlias;
 
   constructor(scope: Construct, id: string, props: CommandCenterBackendStackProps) {
     super(scope, id, props);
@@ -51,19 +44,13 @@ export class CommandCenterBackendStack extends cdk.Stack {
     // Create Lambda functions
     this.updatesHandlerLambda = this.createUpdatesHandlerLambda(config);
 
-    // Create placeholder for databaseQueryToolLambda (will be implemented in task 5)
-    // For now, we'll create the Bedrock Agent configuration that references it
-    this.databaseQueryToolLambda = this.createDatabaseQueryToolLambda(config);
+    // Note: We're using direct Nova model invocation with tool calling instead of Bedrock Agents
+    // This aligns with the hackathon requirement to use "Amazon SDKs for Agents/Nova Act SDK"
 
-    // Create Bedrock Agent
-    const { agent, agentAlias } = this.createBedrockAgent(config);
-    this.bedrockAgent = agent;
-    this.bedrockAgentAlias = agentAlias;
-
-    // Create queryHandlerLambda (task 7)
+    // Create queryHandlerLambda (task 7) - uses Nova model with Converse API
     this.queryHandlerLambda = this.createQueryHandlerLambda(config);
 
-    // Create actionHandlerLambda (task 8)
+    // Create actionHandlerLambda (task 8) - uses Nova model with Converse API
     this.actionHandlerLambda = this.createActionHandlerLambda(config);
 
     // Create API Gateway (placeholder - will be implemented in task 9)
@@ -97,17 +84,16 @@ export class CommandCenterBackendStack extends cdk.Stack {
       ],
     });
 
-    // Add Bedrock invoke permissions
+    // Add Bedrock Runtime invoke permissions for Nova models
     this.queryLambdaRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
-        'bedrock:InvokeAgent',
         'bedrock:InvokeModel',
       ],
       resources: [
-        `arn:aws:bedrock:${config.region}:${config.account}:agent/*`,
-        `arn:aws:bedrock:${config.region}:${config.account}:agent-alias/*`,
-        `arn:aws:bedrock:${config.region}::foundation-model/*`,
+        `arn:aws:bedrock:${config.region}::foundation-model/${config.bedrockModel}`,
+        `arn:aws:bedrock:${config.region}::foundation-model/us.amazon.nova-*`,
+        `arn:aws:bedrock:${config.region}::foundation-model/amazon.nova-*`,
       ],
     }));
 
@@ -121,53 +107,20 @@ export class CommandCenterBackendStack extends cdk.Stack {
       ],
     });
 
-    // Add Bedrock invoke permissions
+    // Add Bedrock Runtime invoke permissions for Nova models
     this.actionLambdaRole.addToPolicy(new iam.PolicyStatement({
-      effect: iam.Effect.ALLOW,
-      actions: [
-        'bedrock:InvokeAgent',
-        'bedrock:InvokeModel',
-      ],
-      resources: [
-        `arn:aws:bedrock:${config.region}:${config.account}:agent/*`,
-        `arn:aws:bedrock:${config.region}:${config.account}:agent-alias/*`,
-        `arn:aws:bedrock:${config.region}::foundation-model/*`,
-      ],
-    }));
-
-    // Role for databaseQueryToolLambda - needs DynamoDB read access
-    this.toolLambdaRole = new iam.Role(this, 'ToolLambdaRole', {
-      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
-      description: 'Role for databaseQueryToolLambda with DynamoDB read access',
-      roleName: `${config.stackName}-ToolLambdaRole`,
-      managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole'),
-      ],
-    });
-
-    // Note: Permission for Bedrock Agent to invoke the tool Lambda
-    // will be added directly to the Lambda function after it's created
-    // (see createDatabaseQueryToolLambda method)
-
-    // Role for Bedrock Agent - needs to invoke foundation models
-    this.bedrockAgentRole = new iam.Role(this, 'BedrockAgentRole', {
-      assumedBy: new iam.ServicePrincipal('bedrock.amazonaws.com'),
-      description: 'Role for Bedrock Agent to invoke foundation models',
-      roleName: `${config.stackName}-BedrockAgentRole`,
-    });
-
-    // Add permissions to invoke the configured Bedrock model
-    this.bedrockAgentRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
         'bedrock:InvokeModel',
       ],
       resources: [
         `arn:aws:bedrock:${config.region}::foundation-model/${config.bedrockModel}`,
-        // Also allow all Claude models for flexibility
-        `arn:aws:bedrock:${config.region}::foundation-model/anthropic.claude-*`,
+        `arn:aws:bedrock:${config.region}::foundation-model/us.amazon.nova-*`,
+        `arn:aws:bedrock:${config.region}::foundation-model/amazon.nova-*`,
       ],
     }));
+
+    // Note: Tool Lambda and Bedrock Agent roles removed - using direct Nova model invocation
   }
 
   private createDynamoDBTable(config: EnvironmentConfig): dynamodb.Table {
@@ -209,7 +162,6 @@ export class CommandCenterBackendStack extends cdk.Stack {
 
     // Grant read permissions to Lambda roles that need it
     table.grantReadData(this.updatesLambdaRole);
-    table.grantReadData(this.toolLambdaRole);
 
     return table;
   }
@@ -565,36 +517,7 @@ export class CommandCenterBackendStack extends cdk.Stack {
     return updatesLambda;
   }
 
-  private createDatabaseQueryToolLambda(config: EnvironmentConfig): lambda.Function {
-    // Create log group explicitly
-    const logGroup = new logs.LogGroup(this, 'DatabaseQueryToolLogGroup', {
-      logGroupName: `/aws/lambda/${config.stackName}-DatabaseQueryTool`,
-      retention: logs.RetentionDays.TWO_WEEKS,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-    });
-
-    const toolLambda = new lambda.Function(this, 'DatabaseQueryToolLambda', {
-      functionName: `${config.stackName}-DatabaseQueryTool`,
-      runtime: lambda.Runtime.NODEJS_20_X,
-      handler: 'lib/lambdas/databaseQueryTool.handler',
-      code: lambda.Code.fromAsset('lambda-bundle'),
-      role: this.toolLambdaRole,
-      environment: {
-        TABLE_NAME: this.table.tableName,
-        LOG_LEVEL: config.stage === 'prod' ? 'INFO' : 'DEBUG',
-        AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
-      },
-      timeout: cdk.Duration.seconds(30),
-      memorySize: 512,
-      description: 'Action Group tool for Bedrock Agent to query DynamoDB',
-      logGroup: logGroup,
-    });
-
-    // Grant Bedrock Agent permission to invoke this Lambda
-    toolLambda.grantInvoke(new iam.ServicePrincipal('bedrock.amazonaws.com'));
-
-    return toolLambda;
-  }
+  // Note: createDatabaseQueryToolLambda removed - tools are now executed inline within query/action handlers
 
   private createQueryHandlerLambda(config: EnvironmentConfig): lambda.Function {
     // Create log group explicitly
@@ -611,16 +534,19 @@ export class CommandCenterBackendStack extends cdk.Stack {
       code: lambda.Code.fromAsset('lambda-bundle'),
       role: this.queryLambdaRole,
       environment: {
-        AGENT_ID: this.bedrockAgent!.attrAgentId,
-        AGENT_ALIAS_ID: this.bedrockAgentAlias!.attrAgentAliasId,
+        BEDROCK_MODEL: config.bedrockModel,
+        TABLE_NAME: this.table.tableName,
         LOG_LEVEL: config.stage === 'prod' ? 'INFO' : 'DEBUG',
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
       },
-      timeout: cdk.Duration.seconds(60), // Longer timeout for agent invocation
+      timeout: cdk.Duration.seconds(60), // Longer timeout for model invocation
       memorySize: 512,
-      description: 'Handles POST /agent/query endpoint for natural language queries',
+      description: 'Handles POST /agent/query endpoint for natural language queries using Nova model',
       logGroup: logGroup,
     });
+
+    // Grant DynamoDB read access
+    this.table.grantReadData(queryLambda);
 
     return queryLambda;
   }
@@ -640,95 +566,24 @@ export class CommandCenterBackendStack extends cdk.Stack {
       code: lambda.Code.fromAsset('lambda-bundle'),
       role: this.actionLambdaRole,
       environment: {
-        AGENT_ID: this.bedrockAgent!.attrAgentId,
-        AGENT_ALIAS_ID: this.bedrockAgentAlias!.attrAgentAliasId,
+        BEDROCK_MODEL: config.bedrockModel,
+        TABLE_NAME: this.table.tableName,
         LOG_LEVEL: config.stage === 'prod' ? 'INFO' : 'DEBUG',
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
       },
-      timeout: cdk.Duration.seconds(60), // Longer timeout for agent invocation
+      timeout: cdk.Duration.seconds(60), // Longer timeout for model invocation
       memorySize: 512,
-      description: 'Handles POST /agent/action endpoint for pre-defined actions',
+      description: 'Handles POST /agent/action endpoint for pre-defined actions using Nova model',
       logGroup: logGroup,
     });
+
+    // Grant DynamoDB read access
+    this.table.grantReadData(actionLambda);
 
     return actionLambda;
   }
 
-  private createBedrockAgent(config: EnvironmentConfig): {
-    agent: bedrock.CfnAgent;
-    agentAlias: bedrock.CfnAgentAlias;
-  } {
-    // Agent instruction prompt (subtask 6.2)
-    const instructionPrompt = `You are an AI assistant for a disaster response Command Center. Your role is to help operators understand the current situation by answering questions about incidents, resources, and response activities during the 2023 Turkey earthquake response simulation.
-
-You have access to a database of events from a 7-day earthquake response simulation. Use the databaseQueryTool to retrieve relevant data when needed.
-
-When answering questions:
-1. Be concise and factual
-2. Include specific numbers and locations when available
-3. Highlight critical or urgent situations
-4. Autonomously control the map visualization - decide optimal zoom levels, generate density polygons, and center the map to best answer the query
-5. If the data doesn't exist or you're unsure, say so clearly
-
-Your response will be transformed into a structured format with:
-- chatResponse: Your natural language answer
-- mapAction: "REPLACE" (clear existing layers) or "APPEND" (add to existing)
-- mapLayers: Array of GeoJSON layers with styling (Points, Polygons, LineStrings)
-- viewState: Map bounds or center/zoom to focus on relevant area
-- uiContext: Suggested follow-up actions for the operator
-
-When creating map layers:
-- Use appropriate icons for Point layers (BUILDING_COLLAPSE, FOOD_SUPPLY, DONATION_POINT, MEDICAL_FACILITY, FIRE_INCIDENT, STRUCTURAL_DAMAGE, LOGISTICS_HUB, COMMUNICATION_TOWER)
-- Use color coding for severity (CRITICAL=#DC2626, HIGH=#F59E0B, MEDIUM=#3B82F6, LOW=#10B981)
-- For demand zones or analysis areas, use Polygon layers with semi-transparent fills
-- Always include meaningful properties in GeoJSON features for tooltips
-
-Example good responses:
-- "There are 12 critical medical incidents in Nurdağı. The most urgent is a building collapse at coordinates [37.15, 37.12] with 15 people trapped. I've highlighted all critical medical incidents on the map in red."
-- "Food supply is critically low in 3 districts. I've created a heat map showing demand density. The highest need is in the eastern sector with 5,000 people requiring immediate food assistance."
-- "The optimal route from the logistics hub to the medical facility avoids the damaged bridge on Highway 5. I've drawn the recommended path on the map in blue."`;
-
-    // Read the OpenAPI schema for the Action Group
-    const fs = require('fs');
-    const path = require('path');
-    const schemaPath = path.join(__dirname, 'agent', 'action-group-schema.json');
-    const actionGroupSchema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
-
-    // Create the Bedrock Agent with Action Group (subtask 6.3)
-    const agent = new bedrock.CfnAgent(this, 'CommandCenterAgent', {
-      agentName: `${config.stackName}-Agent`,
-      agentResourceRoleArn: this.bedrockAgentRole.roleArn,
-      foundationModel: config.bedrockModel,
-      instruction: instructionPrompt,
-      description: 'AI agent for Command Center disaster response queries',
-      idleSessionTtlInSeconds: 600, // 10 minutes
-      actionGroups: [
-        {
-          actionGroupName: 'databaseQueryTool',
-          description: 'Query the simulation database for events based on domain, severity, time range, and location filters',
-          actionGroupExecutor: {
-            lambda: this.databaseQueryToolLambda!.functionArn,
-          },
-          apiSchema: {
-            payload: JSON.stringify(actionGroupSchema),
-          },
-          actionGroupState: 'ENABLED',
-        },
-      ],
-    });
-
-    // Create agent alias for stable endpoint
-    const agentAlias = new bedrock.CfnAgentAlias(this, 'CommandCenterAgentAlias', {
-      agentId: agent.attrAgentId,
-      agentAliasName: config.stage === 'prod' ? 'production' : 'development',
-      description: `${config.stage} alias for Command Center Agent`,
-    });
-
-    // Ensure agent is created before alias
-    agentAlias.addDependency(agent);
-
-    return { agent, agentAlias };
-  }
+  // Note: createBedrockAgent removed - using direct Nova model invocation with Converse API instead
 
   private createOutputs(): void {
     new cdk.CfnOutput(this, 'TableName', {
@@ -758,11 +613,6 @@ Example good responses:
       description: 'ARN of the Action Lambda role',
     });
 
-    new cdk.CfnOutput(this, 'ToolLambdaRoleArn', {
-      value: this.toolLambdaRole.roleArn,
-      description: 'ARN of the Tool Lambda role',
-    });
-
     if (this.updatesHandlerLambda) {
       new cdk.CfnOutput(this, 'UpdatesHandlerLambdaArn', {
         value: this.updatesHandlerLambda.functionArn,
@@ -781,29 +631,6 @@ Example good responses:
       new cdk.CfnOutput(this, 'ActionHandlerLambdaArn', {
         value: this.actionHandlerLambda.functionArn,
         description: 'ARN of the Action Handler Lambda function',
-      });
-    }
-
-    if (this.databaseQueryToolLambda) {
-      new cdk.CfnOutput(this, 'DatabaseQueryToolLambdaArn', {
-        value: this.databaseQueryToolLambda.functionArn,
-        description: 'ARN of the Database Query Tool Lambda function',
-      });
-    }
-
-    if (this.bedrockAgent) {
-      new cdk.CfnOutput(this, 'BedrockAgentId', {
-        value: this.bedrockAgent.attrAgentId,
-        description: 'Bedrock Agent ID',
-        exportName: `${this.stackName}-BedrockAgentId`,
-      });
-    }
-
-    if (this.bedrockAgentAlias) {
-      new cdk.CfnOutput(this, 'BedrockAgentAliasId', {
-        value: this.bedrockAgentAlias.attrAgentAliasId,
-        description: 'Bedrock Agent Alias ID',
-        exportName: `${this.stackName}-BedrockAgentAliasId`,
       });
     }
   }
@@ -982,47 +809,7 @@ Example good responses:
       width: 8,
     });
 
-    // Lambda Metrics - Database Query Tool
-    const toolInvocationsWidget = new cloudwatch.GraphWidget({
-      title: 'Tool Lambda - Invocations',
-      left: [
-        this.databaseQueryToolLambda!.metricInvocations({
-          statistic: 'Sum',
-          period: cdk.Duration.minutes(5),
-        }),
-      ],
-      width: 8,
-    });
-
-    const toolDurationWidget = new cloudwatch.GraphWidget({
-      title: 'Tool Lambda - Duration',
-      left: [
-        this.databaseQueryToolLambda!.metricDuration({
-          statistic: 'Average',
-          period: cdk.Duration.minutes(5),
-        }),
-        this.databaseQueryToolLambda!.metricDuration({
-          statistic: 'p99',
-          period: cdk.Duration.minutes(5),
-        }),
-      ],
-      width: 8,
-    });
-
-    const toolErrorsWidget = new cloudwatch.GraphWidget({
-      title: 'Tool Lambda - Errors',
-      left: [
-        this.databaseQueryToolLambda!.metricErrors({
-          statistic: 'Sum',
-          period: cdk.Duration.minutes(5),
-        }),
-        this.databaseQueryToolLambda!.metricThrottles({
-          statistic: 'Sum',
-          period: cdk.Duration.minutes(5),
-        }),
-      ],
-      width: 8,
-    });
+    // Note: Tool Lambda metrics removed - tools are now executed inline within query/action handlers
 
     // DynamoDB Metrics
     const dynamoReadCapacityWidget = new cloudwatch.GraphWidget({
@@ -1119,7 +906,6 @@ Example good responses:
     dashboard.addWidgets(updatesInvocationsWidget, updatesDurationWidget, updatesErrorsWidget);
     dashboard.addWidgets(queryInvocationsWidget, queryDurationWidget, queryErrorsWidget);
     dashboard.addWidgets(actionInvocationsWidget, actionDurationWidget, actionErrorsWidget);
-    dashboard.addWidgets(toolInvocationsWidget, toolDurationWidget, toolErrorsWidget);
     dashboard.addWidgets(dynamoReadCapacityWidget, dynamoWriteCapacityWidget);
     dashboard.addWidgets(dynamoThrottlesWidget, new cloudwatch.TextWidget({
       markdown: '# DynamoDB Metrics\\n\\nMonitor read/write capacity consumption and throttling events.\\n\\n**Billing Mode:** Pay-per-request\\n**Throttles:** Should be 0 under normal operation',

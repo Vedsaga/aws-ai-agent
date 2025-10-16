@@ -67,8 +67,8 @@ AWS CDK-based backend API for the Command Center disaster response dashboard.
 │  │  DynamoDB    │◀─────────────│  Bedrock     │               │
 │  │              │              │  Agent       │               │
 │  │  - Events    │              │              │               │
-│  │  - Timeline  │              │  + Claude 3  │               │
-│  │  - GSI       │              │    Sonnet    │               │
+│  │  - Timeline  │              │  + OpenAI    │               │
+│  │  - GSI       │              │    GPT-4o    │               │
 │  │              │              │              │               │
 │  └──────────────┘              └──────────────┘               │
 │                                                                 │
@@ -114,7 +114,7 @@ Frontend Dashboard
 │              │          │                                  │
 │  Events by   │◀─────────│  + Action Group                  │
 │  Day + Time  │  Tool    │  + Database Tool (Lambda)        │
-│              │  Call    │  + Claude 3 Sonnet               │
+│              │  Call    │  + OpenAI GPT-4o                 │
 └──────────────┘          └──────────────────────────────────┘
 ```
 
@@ -152,7 +152,7 @@ Global Secondary Index: DomainIndex
 - **Node.js 18+** and npm
 - **AWS CLI** configured with credentials
 - **AWS CDK** installed globally: `npm install -g aws-cdk`
-- **Bedrock Access**: Request Claude 3 Sonnet access in AWS Console (one-time)
+- **Bedrock Access**: Request OpenAI GPT-4o access in AWS Console (one-time)
 
 Check prerequisites:
 ```bash
@@ -307,7 +307,7 @@ Main costs: Bedrock Agent invocations, Lambda, DynamoDB
 
 - [ ] Prerequisites installed
 - [ ] AWS credentials configured
-- [ ] Bedrock Claude 3 Sonnet access requested
+- [ ] Bedrock OpenAI GPT-4o access requested
 - [ ] Run `./deploy.sh`
 - [ ] Run `./test-api.sh`
 - [ ] Share API credentials with frontend team

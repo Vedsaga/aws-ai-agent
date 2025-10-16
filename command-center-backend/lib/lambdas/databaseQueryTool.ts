@@ -20,15 +20,15 @@ function calculateDistance(
   const R = 6371; // Earth's radius in kilometers
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
-  
-  const a = 
+
+  const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
     Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  
+
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const distance = R * c;
-  
+
   return distance;
 }
 
@@ -42,17 +42,17 @@ function calculateDistance(
 function extractCoordinates(geojsonStr: string): [number, number] | null {
   try {
     const geojson = JSON.parse(geojsonStr);
-    
+
     if (!geojson || !geojson.type || !geojson.coordinates) {
       return null;
     }
-    
+
     // Handle different geometry types
     switch (geojson.type) {
       case 'Point':
         // Point: [lon, lat]
         return geojson.coordinates as [number, number];
-      
+
       case 'Polygon':
         // Polygon: [[[lon, lat], ...]]
         // Use first coordinate of outer ring
@@ -60,7 +60,7 @@ function extractCoordinates(geojsonStr: string): [number, number] | null {
           return geojson.coordinates[0][0] as [number, number];
         }
         return null;
-      
+
       case 'LineString':
         // LineString: [[lon, lat], ...]
         // Use first coordinate
@@ -68,7 +68,7 @@ function extractCoordinates(geojsonStr: string): [number, number] | null {
           return geojson.coordinates[0] as [number, number];
         }
         return null;
-      
+
       default:
         return null;
     }
@@ -95,14 +95,14 @@ function filterByLocation(
 ): EventItem[] {
   return events.filter(event => {
     const coords = extractCoordinates(event.geojson);
-    
+
     if (!coords) {
       return false;
     }
-    
+
     const [lon, lat] = coords;
     const distance = calculateDistance(targetLat, targetLon, lat, lon);
-    
+
     return distance <= radiusKm;
   });
 }
@@ -145,7 +145,7 @@ export async function handler(event: any): Promise<any> {
     // Extract parameters from Bedrock Agent event
     // Bedrock sends the input in event.parameters or event.requestBody.content.application/json
     let toolInput: any;
-    
+
     if (event.parameters) {
       // Parameters come as an array of {name, value} objects
       toolInput = event.parameters.reduce((acc: any, param: any) => {
@@ -165,13 +165,13 @@ export async function handler(event: any): Promise<any> {
 
     // Validate tool input using Zod schema
     const validationResult = ToolInputSchema.safeParse(toolInput);
-    
+
     if (!validationResult.success) {
       console.error('Tool input validation failed', {
         errors: validationResult.error.issues,
         toolInput,
       });
-      
+
       return {
         error: {
           code: 'INVALID_PARAMETERS',
@@ -214,7 +214,7 @@ export async function handler(event: any): Promise<any> {
       const radiusKm = location.radiusKm || 10; // Default 10km radius
       events = filterByLocation(events, location.lat, location.lon, radiusKm);
       const filterDuration = Date.now() - filterStartTime;
-      
+
       console.log('Location filtering completed', {
         filteredCount: events.length,
         filterDuration,
