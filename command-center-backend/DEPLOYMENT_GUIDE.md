@@ -1,718 +1,371 @@
-# Command Center Backend - Deployment Guide
+# Command Center Backend - Complete Deployment Guide
 
-## Overview
+## 🚀 Quick Start (3 Steps)
 
-This guide provides step-by-step instructions for deploying the Command Center Backend API to AWS. The deployment uses AWS CDK (Cloud Development Kit) to provision all necessary infrastructure including Lambda functions, DynamoDB tables, API Gateway, and Amazon Bedrock Agent.
+```bash
+# 1. Check prerequisites
+bash check-prerequisites.sh
 
----
+# 2. Request Bedrock access (AWS Console - one time only)
+# Go to: https://console.aws.amazon.com/bedrock/ → Model access → Request Claude 3 Sonnet
 
-## Prerequisites
-
-### Required Software
-
-1. **Node.js** (v18 or later)
-   ```bash
-   node --version  # Should be v18.x or higher
-   ```
-
-2. **npm** (comes with Node.js)
-   ```bash
-   npm --version
-   ```
-
-3. **AWS CLI** (v2)
-   ```bash
-   aws --version
-   ```
-   Install: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
-
-4. **AWS CDK CLI**
-   ```bash
-   npm install -g aws-cdk
-   cdk --version
-   ```
-
-### AWS Account Setup
-
-1. **AWS Account**: You need an active AWS account with appropriate permissions
-
-2. **AWS Credentials**: Configure AWS CLI with your credentials
-   ```bash
-   aws configure
-   ```
-   You'll need:
-   - AWS Access Key ID
-   - AWS Secret Access Key
-   - Default region (e.g., `us-east-1`)
-   - Default output format (e.g., `json`)
-
-3. **Verify AWS Configuration**
-   ```bash
-   aws sts get-caller-identity
-   ```
-   This should return your AWS account details.
-
----
-
-## Required AWS Permissions
-
-The deploying IAM user/role needs the following permissions:
-
-### Core Services
-- **CloudFormation**: Full access (for CDK deployments)
-- **IAM**: Create and manage roles and policies
-- **Lambda**: Create and manage functions
-- **API Gateway**: Create and manage REST APIs
-- **DynamoDB**: Create and manage tables
-- **Bedrock**: Create and manage agents and action groups
-- **CloudWatch**: Create log groups and metrics
-- **S3**: Access to CDK bootstrap bucket
-
-### Recommended IAM Policy
-
-For production deployments, use a custom policy. For development/testing, you can use:
-- `AdministratorAccess` (full access - use with caution)
-
-Or create a custom policy with these permissions:
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "cloudformation:*",
-        "iam:*",
-        "lambda:*",
-        "apigateway:*",
-        "dynamodb:*",
-        "bedrock:*",
-        "logs:*",
-        "s3:*"
-      ],
-      "Resource": "*"
-    }
-  ]
-}
+# 3. Deploy everything
+npm run deploy
 ```
 
-### Bedrock Model Access
-
-Ensure your AWS account has access to Amazon Bedrock and the Claude 3 Sonnet model:
-
-1. Go to AWS Console → Bedrock → Model access
-2. Request access to "Claude 3 Sonnet" if not already enabled
-3. Wait for approval (usually instant for most accounts)
+**That's it!** The deployment takes ~10 minutes and handles everything automatically.
 
 ---
 
-## Installation Steps
+## 📋 Prerequisites
 
-### 1. Clone and Install Dependencies
+### Required Software
+- **Node.js 18+**: `node --version`
+- **npm**: `npm --version`
+- **AWS CLI v2**: `aws --version`
+- **AWS CDK**: `npm install -g aws-cdk`
+
+### AWS Setup
+```bash
+# Configure AWS credentials
+aws configure
+
+# Verify configuration
+aws sts get-caller-identity
+```
+
+### Bedrock Model Access (One-Time)
+1. Go to AWS Console → Bedrock → Model access
+2. Request access to **Claude 3 Sonnet**
+3. Wait for approval (usually instant)
+
+---
+
+## 🔧 502 Error Fix (If Deploying for First Time)
+
+### Problem
+Lambda functions fail with `Error: Cannot find module 'zod'` because dependencies weren't bundled.
+
+### Solution (Already Applied)
+The deployment now automatically bundles all dependencies. Just run:
+
+```bash
+npm run deploy
+```
+
+This command:
+1. Builds TypeScript → `dist/`
+2. Creates bundle with dependencies → `lambda-bundle/`
+3. Deploys to AWS with CDK
+
+### What Changed
+- **Before**: Lambda used `dist/` (no node_modules) ❌
+- **After**: Lambda uses `lambda-bundle/` (with node_modules) ✅
+
+---
+
+## 📦 Installation
 
 ```bash
 cd command-center-backend
 npm install
 ```
 
-This installs all required dependencies including AWS CDK libraries.
+---
 
-### 2. Bootstrap CDK (First-Time Only)
+## 🚀 Deployment
 
-If this is your first time using CDK in this AWS account/region:
-
-```bash
-cdk bootstrap aws://ACCOUNT-ID/REGION
-```
-
-Example:
-```bash
-cdk bootstrap aws://123456789012/us-east-1
-```
-
-This creates an S3 bucket and other resources needed for CDK deployments.
-
-### 3. Configure Environment Variables
-
-Create a `.env.local` file in the `command-center-backend` directory:
+### First-Time Deployment
 
 ```bash
-# AWS Configuration
-AWS_REGION=us-east-1
-AWS_ACCOUNT_ID=your-account-id
+# Bootstrap CDK (first time only)
+cdk bootstrap
 
-# Application Configuration
-ENVIRONMENT=dev
-TABLE_NAME=MasterEventTimeline
-
-# Cost Control
-BUDGET_LIMIT_USD=50
-ALERT_EMAIL=your-email@example.com
+# Deploy everything
+npm run deploy
 ```
 
-**Important**: Replace placeholder values with your actual configuration.
+### What Gets Deployed
+- ✅ DynamoDB table (MasterEventTimeline)
+- ✅ 4 Lambda functions (with dependencies bundled)
+- ✅ API Gateway REST API
+- ✅ Bedrock Agent with Action Group
+- ✅ IAM roles and policies
+- ✅ CloudWatch log groups
+- ✅ Cost monitoring alarms
 
-### 4. Review CDK Stack Configuration
-
-Open `lib/command-center-backend-stack.ts` and verify:
-- Region settings
-- Resource naming conventions
-- Cost control settings (budget alarms)
+### Deployment Time
+- **First deployment**: ~10-15 minutes
+- **Updates**: ~2-5 minutes (only changed resources)
 
 ---
 
-## Deployment Process
-
-### Step 1: Synthesize CloudFormation Template
-
-Preview what will be deployed:
+## 🔄 Redeployment (After Code Changes)
 
 ```bash
-cdk synth
+# Redeploy everything
+npm run deploy
+
+# Or deploy without re-bundling (if only CDK stack changed)
+npm run deploy:quick
 ```
 
-This generates a CloudFormation template. Review it to ensure everything looks correct.
+CDK is smart - it only updates what changed:
+- Changed Lambda code? → Updates only that Lambda
+- Changed API routes? → Updates only API Gateway
+- No changes? → Completes in seconds
 
-### Step 2: Deploy Infrastructure
+---
 
-Deploy the full stack:
+## 📊 Post-Deployment
 
-```bash
-cdk deploy
-```
+### 1. Save Outputs
 
-You'll see a summary of changes. Type `y` to confirm.
-
-**Deployment time**: Approximately 5-10 minutes
-
-The deployment will create:
-- DynamoDB table (MasterEventTimeline)
-- 4 Lambda functions (updates, query, action, tool handlers)
-- API Gateway REST API
-- Bedrock Agent with Action Group
-- IAM roles and policies
-- CloudWatch log groups
-- Cost monitoring alarms
-
-### Step 3: Note Deployment Outputs
-
-After successful deployment, CDK will output important values:
+After deployment, save these values:
 
 ```
-Outputs:
-CommandCenterBackendStack.ApiEndpoint = https://abc123.execute-api.us-east-1.amazonaws.com/prod
-CommandCenterBackendStack.ApiKeyId = xyz789
-CommandCenterBackendStack.TableName = MasterEventTimeline
-CommandCenterBackendStack.AgentId = AGENT123
+API Endpoint: https://xxxxx.execute-api.us-east-1.amazonaws.com/dev
+API Key ID: xxxxx
+Table Name: CommandCenterBackend-Dev-MasterEventTimeline
+Agent ID: xxxxx
 ```
 
-**Save these values** - you'll need them for configuration and testing.
-
-### Step 4: Retrieve API Key
-
-Get your API key value:
+### 2. Retrieve API Key
 
 ```bash
 aws apigateway get-api-key --api-key YOUR_API_KEY_ID --include-value
 ```
 
-Or use the AWS Console:
-1. Go to API Gateway → API Keys
-2. Find your key
-3. Click "Show" to reveal the value
+Or check `.env.local` (auto-generated).
 
----
-
-## Post-Deployment Configuration
-
-### 1. Populate Database with Simulation Data
-
-Run the data population script:
+### 3. Populate Database
 
 ```bash
 npm run populate-db
 ```
 
-Or manually:
+This generates 7 days of simulation data (~500-1000 events).
+
+### 4. Verify Deployment
 
 ```bash
-cd scripts
-ts-node populate-database.ts
+# Quick test
+npm run test:quick
+
+# Full test suite
+npm run test:api
 ```
-
-This will:
-- Generate 7 days of simulation data
-- Insert events into DynamoDB
-- Verify data integrity
-
-**Expected time**: 2-3 minutes
-
-### 2. Verify Database Population
-
-Check that data was inserted:
-
-```bash
-aws dynamodb scan \
-  --table-name MasterEventTimeline \
-  --select COUNT
-```
-
-You should see a count of events (typically 500-1000 events).
-
-### 3. Configure Bedrock Agent
-
-The Bedrock Agent is created automatically, but you may want to verify its configuration:
-
-1. Go to AWS Console → Bedrock → Agents
-2. Find your agent (CommandCenterAgent)
-3. Verify:
-   - Model: Claude 3 Sonnet
-   - Action Group: databaseQueryTool is configured
-   - Lambda association: Points to databaseQueryToolLambda
-
-### 4. Test Agent in Bedrock Console
-
-Before testing via API, test the agent directly:
-
-1. In Bedrock Console, open your agent
-2. Click "Test" in the right panel
-3. Try queries like:
-   - "What are the most urgent needs?"
-   - "Show me medical incidents"
-4. Verify the agent can invoke the tool and return results
 
 ---
 
-## Verification and Testing
+## 🧪 Testing
 
-### 1. Test API Endpoints
-
-#### Test Updates Endpoint
+### Test Individual Endpoints
 
 ```bash
-curl -X GET "https://YOUR_API_ENDPOINT/data/updates?since=2023-02-06T00:00:00Z" \
-  -H "x-api-key: YOUR_API_KEY"
-```
+# Load credentials
+source .env.local
 
-Expected: JSON response with event updates
+# Test updates endpoint
+curl -X GET "${API_ENDPOINT}/data/updates?since=2023-02-06T00:00:00Z" \
+  -H "x-api-key: ${API_KEY}"
 
-#### Test Query Endpoint
-
-```bash
-curl -X POST "https://YOUR_API_ENDPOINT/agent/query" \
-  -H "x-api-key: YOUR_API_KEY" \
+# Test query endpoint
+curl -X POST "${API_ENDPOINT}/agent/query" \
+  -H "x-api-key: ${API_KEY}" \
   -H "Content-Type: application/json" \
-  -d '{
-    "text": "What are the most urgent needs right now?"
-  }'
+  -d '{"text": "What are the most urgent needs?"}'
 ```
 
-Expected: JSON response with AI-generated answer and map data
-
-#### Test Action Endpoint
+### Run Test Suites
 
 ```bash
-curl -X POST "https://YOUR_API_ENDPOINT/agent/action" \
-  -H "x-api-key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "actionId": "SHOW_CRITICAL_INCIDENTS"
-  }'
-```
+# Quick API test
+npm run test:quick
 
-Expected: JSON response with critical incidents
+# Full API test suite
+npm run test:api
 
-### 2. Run Integration Tests
-
-```bash
+# Integration tests
 npm run test:integration
 ```
 
-This runs the full integration test suite against your deployed API.
+---
 
-### 3. Run End-to-End Tests
+## 🔍 Troubleshooting
 
+### 502 Errors
+**Cause**: Missing dependencies in Lambda package  
+**Fix**: Already applied! Just run `npm run deploy`
+
+### 403 Forbidden
+**Cause**: Missing or invalid API key  
+**Fix**: Include `x-api-key` header with valid key
+
+### Bedrock Access Denied
+**Cause**: Model access not requested  
+**Fix**: Request Claude 3 Sonnet access in AWS Console
+
+### Deployment Fails
+**Cause**: Insufficient permissions  
+**Fix**: Ensure IAM user has CloudFormation, Lambda, API Gateway, DynamoDB, Bedrock permissions
+
+### Check Logs
 ```bash
-npm run test:e2e
-```
-
-This tests complete workflows including agent interactions.
-
-### 4. Monitor CloudWatch Logs
-
-Check logs for any errors:
-
-```bash
-# View logs for updates handler
-aws logs tail /aws/lambda/updatesHandlerLambda --follow
-
-# View logs for query handler
-aws logs tail /aws/lambda/queryHandlerLambda --follow
+# View Lambda logs
+aws logs tail /aws/lambda/CommandCenterBackend-Dev-UpdatesHandler --follow
+aws logs tail /aws/lambda/CommandCenterBackend-Dev-QueryHandler --follow
+aws logs tail /aws/lambda/CommandCenterBackend-Dev-ActionHandler --follow
 ```
 
 ---
 
-## Configuration Reference
+## 📁 Project Structure
 
-### Environment Variables
+```
+command-center-backend/
+├── lib/
+│   ├── command-center-backend-stack.ts  # CDK stack definition
+│   ├── lambdas/                         # Lambda function code
+│   ├── types/                           # TypeScript types
+│   └── agent/                           # Bedrock Agent config
+├── scripts/
+│   ├── prepare-lambda-bundle.sh         # Bundle dependencies
+│   ├── populate-database.ts             # Generate simulation data
+│   └── test-api.sh                      # API test script
+├── dist/                                # Compiled TypeScript
+├── lambda-bundle/                       # Lambda deployment package
+├── package.json                         # Dependencies
+└── .env.local                           # API credentials (auto-generated)
+```
 
-Lambda functions receive these environment variables:
+---
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `TABLE_NAME` | DynamoDB table name | `MasterEventTimeline` |
-| `AGENT_ID` | Bedrock Agent ID | `AGENT123ABC` |
-| `AGENT_ALIAS_ID` | Bedrock Agent Alias ID | `TSTALIASID` |
-| `LOG_LEVEL` | Logging verbosity | `INFO` |
-| `AWS_REGION` | AWS region | `us-east-1` |
+## 🔐 Environment Variables
 
-### DynamoDB Configuration
+### Lambda Functions Receive:
+- `TABLE_NAME`: DynamoDB table name
+- `AGENT_ID`: Bedrock Agent ID
+- `AGENT_ALIAS_ID`: Bedrock Agent Alias ID
+- `LOG_LEVEL`: DEBUG (dev) or INFO (prod)
 
-- **Table Name**: MasterEventTimeline
-- **Partition Key**: Day (String)
-- **Sort Key**: Timestamp (String)
-- **GSI**: domain-timestamp-index
-- **Billing Mode**: PAY_PER_REQUEST (on-demand)
-- **Encryption**: AWS managed keys
+### Frontend Needs (copy from `.env.local`):
+```bash
+NEXT_PUBLIC_API_ENDPOINT=https://xxxxx.execute-api.us-east-1.amazonaws.com/dev
+NEXT_PUBLIC_API_KEY=xxxxxxxxxxxxx
+```
 
-### API Gateway Configuration
+---
 
-- **Type**: REST API
-- **Stage**: prod
-- **Authentication**: API Key
-- **CORS**: Enabled for dashboard origins
-- **Throttling**: 100 requests/minute (default)
-
-### Cost Controls
-
-The deployment includes automatic cost monitoring:
+## 💰 Cost Monitoring
 
 - **Budget Alarm**: Triggers at $50 USD
 - **SNS Notification**: Sends email alert
-- **Auto-Shutdown**: Optional (configure in stack)
+- **Estimated Monthly Cost**: $5-10 (dev), $20-50 (prod with traffic)
+
+### Main Cost Drivers:
+1. Bedrock Agent invocations (~$0.003 per request)
+2. Lambda invocations (free tier: 1M requests/month)
+3. DynamoDB (on-demand pricing)
+4. API Gateway (free tier: 1M requests/month)
 
 ---
 
-## Updating the Deployment
+## 🗑️ Cleanup
 
-### Update Application Code
-
-After making code changes:
-
-```bash
-# 1. Build TypeScript
-npm run build
-
-# 2. Deploy changes
-cdk deploy
-```
-
-CDK will only update changed resources.
-
-### Update Agent Instructions
-
-To update the Bedrock Agent's instruction prompt:
-
-1. Edit the prompt in `lib/command-center-backend-stack.ts`
-2. Deploy: `cdk deploy`
-3. Test changes in Bedrock Console
-
-### Update Database Schema
-
-**Warning**: Schema changes require careful migration planning.
-
-For adding attributes:
-1. Update TypeScript interfaces in `lib/types/`
-2. Update Lambda code to handle new fields
-3. Deploy: `cdk deploy`
-4. Backfill data if needed
-
----
-
-## Rollback Procedures
-
-### Rollback to Previous Version
-
-If deployment fails or causes issues:
-
-```bash
-# List previous versions
-aws cloudformation describe-stacks --stack-name CommandCenterBackendStack
-
-# Rollback via CDK (if possible)
-cdk deploy --rollback
-
-# Or via CloudFormation Console
-# Go to CloudFormation → Stacks → Select stack → Stack actions → Roll back
-```
-
-### Emergency Shutdown
-
-To quickly shut down all resources:
-
+### Remove Everything
 ```bash
 cdk destroy
 ```
 
-**Warning**: This deletes all resources including data. Use with caution.
+**Warning**: This deletes all resources including data!
 
 ---
 
-## Troubleshooting
+## 📚 Additional Documentation
 
-### Issue: CDK Bootstrap Fails
-
-**Error**: `Need to perform AWS calls for account XXX, but no credentials configured`
-
-**Solution**:
-```bash
-aws configure
-# Enter your credentials
-cdk bootstrap
-```
-
-### Issue: Deployment Fails - Insufficient Permissions
-
-**Error**: `User: arn:aws:iam::XXX:user/YYY is not authorized to perform: XXX`
-
-**Solution**:
-- Verify IAM permissions (see Required AWS Permissions section)
-- Ensure you have CloudFormation, Lambda, API Gateway, DynamoDB, and Bedrock permissions
-
-### Issue: Bedrock Model Access Denied
-
-**Error**: `Access denied to model anthropic.claude-3-sonnet`
-
-**Solution**:
-1. Go to AWS Console → Bedrock → Model access
-2. Request access to Claude 3 Sonnet
-3. Wait for approval (usually instant)
-4. Redeploy: `cdk deploy`
-
-### Issue: API Returns 403 Forbidden
-
-**Error**: `{"message":"Forbidden"}`
-
-**Solution**:
-- Verify you're including the API key in the `x-api-key` header
-- Check that the API key is valid: `aws apigateway get-api-key --api-key YOUR_KEY_ID --include-value`
-- Ensure the API key is associated with the usage plan
-
-### Issue: Agent Queries Timeout
-
-**Error**: Agent queries take too long or timeout
-
-**Solution**:
-- Check CloudWatch logs for the queryHandlerLambda
-- Verify the Bedrock Agent can invoke the tool Lambda
-- Check tool Lambda logs for errors
-- Increase Lambda timeout in CDK stack (default: 30s)
-
-### Issue: Database Queries Slow
-
-**Error**: Updates endpoint takes > 1 second
-
-**Solution**:
-- Verify GSI is created: `aws dynamodb describe-table --table-name MasterEventTimeline`
-- Check DynamoDB metrics in CloudWatch
-- Consider switching to provisioned capacity if on-demand is throttling
-
-### Issue: High Costs
-
-**Error**: AWS bill higher than expected
-
-**Solution**:
-- Check CloudWatch dashboard for usage metrics
-- Verify budget alarm is configured
-- Review Bedrock Agent invocation count (most expensive component)
-- Consider reducing test query frequency
-- Use `cdk destroy` to tear down when not in use
-
-### Issue: Lambda Cold Starts
-
-**Error**: First request after idle period is slow
-
-**Solution**:
-- This is normal for serverless
-- Consider provisioned concurrency for production (increases cost)
-- Implement warming strategy if needed
+- **API_DOCUMENTATION.md** - API endpoint reference
+- **TESTING_GUIDE.md** - Testing strategies
+- **README.md** - Project overview
 
 ---
 
-## Monitoring and Maintenance
-
-### CloudWatch Dashboard
-
-Access the auto-created dashboard:
-
-1. Go to CloudWatch → Dashboards
-2. Find "CommandCenterBackend-Dashboard"
-3. Monitor:
-   - API request count and latency
-   - Lambda invocations and errors
-   - DynamoDB read/write capacity
-   - Bedrock Agent invocations
-
-### Log Analysis
-
-View logs for debugging:
+## 🎯 Quick Commands Reference
 
 ```bash
-# Recent errors across all functions
-aws logs filter-log-events \
-  --log-group-name /aws/lambda/queryHandlerLambda \
-  --filter-pattern "ERROR"
+# Check prerequisites
+bash check-prerequisites.sh
 
-# Tail live logs
-aws logs tail /aws/lambda/queryHandlerLambda --follow
-```
+# Deploy (bundles + deploys)
+npm run deploy
 
-### Cost Monitoring
+# Deploy without bundling
+npm run deploy:quick
 
-Check current costs:
+# Bundle only
+npm run bundle
 
-```bash
-# Get current month costs
-aws ce get-cost-and-usage \
-  --time-period Start=2024-01-01,End=2024-01-31 \
-  --granularity MONTHLY \
-  --metrics BlendedCost
-```
-
-Or use AWS Cost Explorer in the console.
-
----
-
-## Production Deployment Checklist
-
-Before deploying to production:
-
-- [ ] Review and adjust budget limits
-- [ ] Configure production API keys (separate from dev)
-- [ ] Set up proper CORS origins for production dashboard
-- [ ] Enable API Gateway access logging
-- [ ] Configure CloudWatch alarms for errors and latency
-- [ ] Set up SNS notifications for critical alerts
-- [ ] Review IAM roles for least privilege
-- [ ] Enable DynamoDB point-in-time recovery
-- [ ] Document API endpoint and key for frontend team
-- [ ] Run full integration and e2e test suite
-- [ ] Perform load testing
-- [ ] Set up backup and disaster recovery procedures
-- [ ] Configure proper log retention policies
-- [ ] Review and optimize Lambda memory allocation
-- [ ] Enable AWS X-Ray for distributed tracing (optional)
-
----
-
-## Cleanup and Teardown
-
-### Remove All Resources
-
-To completely remove the deployment:
-
-```bash
-cdk destroy
-```
-
-This will:
-- Delete all Lambda functions
-- Delete API Gateway
-- Delete DynamoDB table (and all data)
-- Delete Bedrock Agent
-- Delete IAM roles
-- Delete CloudWatch log groups (after retention period)
-
-**Warning**: This is irreversible. All data will be lost.
-
-### Partial Cleanup
-
-To keep some resources:
-
-1. Manually delete specific resources in AWS Console
-2. Or modify the CDK stack to remove specific constructs
-3. Deploy: `cdk deploy`
-
----
-
-## Support and Resources
-
-### AWS Documentation
-- [AWS CDK Documentation](https://docs.aws.amazon.com/cdk/)
-- [Amazon Bedrock Documentation](https://docs.aws.amazon.com/bedrock/)
-- [API Gateway Documentation](https://docs.aws.amazon.com/apigateway/)
-- [DynamoDB Documentation](https://docs.aws.amazon.com/dynamodb/)
-
-### Project Documentation
-- API Documentation: `API_DOCUMENTATION.md`
-- Requirements: `.kiro/specs/command-center-backend/requirements.md`
-- Design: `.kiro/specs/command-center-backend/design.md`
-
-### Getting Help
-- Check CloudWatch logs for detailed error messages
-- Review the Troubleshooting section above
-- Contact: [Your team contact information]
-
----
-
-## Appendix: Deployment Scripts
-
-### Quick Deploy Script
-
-Create `scripts/deploy.sh`:
-
-```bash
-#!/bin/bash
-set -e
-
-echo "Building application..."
-npm run build
-
-echo "Running tests..."
-npm test
-
-echo "Deploying to AWS..."
-cdk deploy --require-approval never
-
-echo "Deployment complete!"
-echo "Run 'npm run populate-db' to populate the database."
-```
-
-Make it executable:
-```bash
-chmod +x scripts/deploy.sh
-```
-
-### Complete Setup Script
-
-Create `scripts/setup.sh`:
-
-```bash
-#!/bin/bash
-set -e
-
-echo "=== Command Center Backend Setup ==="
-
-echo "1. Installing dependencies..."
-npm install
-
-echo "2. Building application..."
-npm run build
-
-echo "3. Deploying infrastructure..."
-cdk deploy
-
-echo "4. Populating database..."
+# Populate database
 npm run populate-db
 
-echo "5. Running tests..."
-npm run test:integration
+# Test API
+npm run test:quick
+npm run test:api
 
-echo "=== Setup Complete ==="
-echo "Your API is ready to use!"
+# View logs
+aws logs tail /aws/lambda/CommandCenterBackend-Dev-UpdatesHandler --follow
+
+# Preview changes
+cdk diff
+
+# Cleanup
+cdk destroy
 ```
 
 ---
 
-**Last Updated**: [Current Date]
-**Version**: 1.0.0
+## ✅ Deployment Checklist
+
+### Before First Deployment
+- [ ] Node.js 18+ installed
+- [ ] AWS CLI configured
+- [ ] AWS CDK installed globally
+- [ ] Bedrock Claude 3 Sonnet access requested
+- [ ] IAM permissions verified
+
+### After Deployment
+- [ ] API endpoint saved
+- [ ] API key retrieved
+- [ ] Database populated
+- [ ] Tests passing
+- [ ] Credentials shared with frontend team
+
+---
+
+## 🆘 Getting Help
+
+### Check Logs
+```bash
+# Lambda logs
+aws logs tail /aws/lambda/CommandCenterBackend-Dev-UpdatesHandler --since 5m
+
+# CloudFormation events
+aws cloudformation describe-stack-events --stack-name CommandCenterBackend-Dev --max-items 10
+```
+
+### Verify Resources
+```bash
+# List Lambda functions
+aws lambda list-functions --query "Functions[?contains(FunctionName, 'CommandCenter')]"
+
+# Check DynamoDB table
+aws dynamodb describe-table --table-name CommandCenterBackend-Dev-MasterEventTimeline
+
+# Verify API Gateway
+aws apigateway get-rest-apis --query "items[?contains(name, 'CommandCenter')]"
+```
+
+---
+
+**Last Updated**: 2025-10-16  
+**Version**: 2.0.0 (with 502 fix)

@@ -547,7 +547,7 @@ export class CommandCenterBackendStack extends cdk.Stack {
       functionName: `${config.stackName}-UpdatesHandler`,
       runtime: lambda.Runtime.NODEJS_20_X,
       handler: 'lib/lambdas/updatesHandler.handler',
-      code: lambda.Code.fromAsset('dist'),
+      code: lambda.Code.fromAsset('lambda-bundle'),
       role: this.updatesLambdaRole,
       environment: {
         TABLE_NAME: this.table.tableName,
@@ -575,7 +575,7 @@ export class CommandCenterBackendStack extends cdk.Stack {
       functionName: `${config.stackName}-DatabaseQueryTool`,
       runtime: lambda.Runtime.NODEJS_20_X,
       handler: 'lib/lambdas/databaseQueryTool.handler',
-      code: lambda.Code.fromAsset('dist'),
+      code: lambda.Code.fromAsset('lambda-bundle'),
       role: this.toolLambdaRole,
       environment: {
         TABLE_NAME: this.table.tableName,
@@ -606,7 +606,7 @@ export class CommandCenterBackendStack extends cdk.Stack {
       functionName: `${config.stackName}-QueryHandler`,
       runtime: lambda.Runtime.NODEJS_20_X,
       handler: 'lib/lambdas/queryHandler.handler',
-      code: lambda.Code.fromAsset('dist'),
+      code: lambda.Code.fromAsset('lambda-bundle'),
       role: this.queryLambdaRole,
       environment: {
         AGENT_ID: this.bedrockAgent!.attrAgentId,
@@ -635,7 +635,7 @@ export class CommandCenterBackendStack extends cdk.Stack {
       functionName: `${config.stackName}-ActionHandler`,
       runtime: lambda.Runtime.NODEJS_20_X,
       handler: 'lib/lambdas/actionHandler.handler',
-      code: lambda.Code.fromAsset('dist'),
+      code: lambda.Code.fromAsset('lambda-bundle'),
       role: this.actionLambdaRole,
       environment: {
         AGENT_ID: this.bedrockAgent!.attrAgentId,

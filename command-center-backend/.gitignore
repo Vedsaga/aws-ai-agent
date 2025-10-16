@@ -9,6 +9,7 @@ cdk.out
 
 # Build output
 dist
+lambda-bundle
 
 # Environment variables
 .env

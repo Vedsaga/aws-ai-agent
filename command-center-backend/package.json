@@ -6,7 +6,9 @@
     "build": "tsc",
     "watch": "tsc -w",
     "cdk": "cdk",
-    "deploy": "cdk deploy",
+    "bundle": "./scripts/prepare-lambda-bundle.sh",
+    "deploy": "./scripts/prepare-lambda-bundle.sh && cdk deploy",
+    "deploy:quick": "cdk deploy",
     "destroy": "cdk destroy",
     "synth": "cdk synth",
     "diff": "cdk diff",
@@ -15,7 +17,9 @@
     "test": "./test/run-tests.sh",
     "test:unit": "ts-node test/unit.test.ts",
     "test:e2e": "./test/run-tests.sh --e2e",
-    "test:integration": "./scripts/run-integration-tests.sh"
+    "test:integration": "./scripts/run-integration-tests.sh",
+    "test:api": "./scripts/test-api.sh",
+    "test:quick": "./scripts/quick-test.sh"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.155",
