@@ -89,7 +89,7 @@ while (iteration < MAX_ITERATIONS) {
 ## Environment Variables
 
 ### Updated
-- `BEDROCK_MODEL`: `us.amazon.nova-pro-v1:0`
+- `BEDROCK_MODEL`: `amazon.nova-pro-v1:0`
 - `TABLE_NAME`: DynamoDB table name
 
 ### Removed
@@ -135,4 +135,4 @@ while (iteration < MAX_ITERATIONS) {
 1. Test the API endpoints thoroughly
 2. Monitor CloudWatch logs for any issues
 3. Verify tool calling works correctly
-4. Test with various queries to ensure proper responses
+4. Test with various queries to ensure proper

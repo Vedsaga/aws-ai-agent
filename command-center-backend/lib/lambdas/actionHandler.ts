@@ -15,7 +15,7 @@ const bedrockClient = new BedrockRuntimeClient({
 });
 
 // Environment variables
-const BEDROCK_MODEL = process.env.BEDROCK_MODEL || 'us.amazon.nova-pro-v1:0';
+const BEDROCK_MODEL = process.env.BEDROCK_MODEL || 'amazon.nova-pro-v1:0';
 const TABLE_NAME = process.env.TABLE_NAME;
 const LOG_LEVEL = process.env.LOG_LEVEL || 'INFO';
 
@@ -398,7 +398,7 @@ async function invokeModelWithTools(userMessage: string): Promise<string> {
       });
 
       // Execute tool calls
-      const toolResults: ToolResultBlock[] = [];
+      const toolResultContent: any[] = [];
       const toolUses = response.output?.message?.content?.filter((c: any) => c.toolUse) || [];
 
       for (const toolUse of toolUses) {
@@ -435,9 +435,18 @@ async function invokeModelWithTools(userMessage: string): Promise<string> {
             resultSize: JSON.stringify(toolResult).length,
           });
 
-          toolResults.push({
-            toolUseId: tool.toolUseId,
-            content: [{ json: toolResult }],
+          // Truncate large results to avoid SDK serialization issues
+          const resultString = JSON.stringify(toolResult);
+          const maxSize = 25000; // 25KB limit for tool results
+          const truncatedResult = resultString.length > maxSize 
+            ? resultString.substring(0, maxSize) + '... (truncated)'
+            : resultString;
+
+          toolResultContent.push({
+            toolResult: {
+              toolUseId: tool.toolUseId,
+              content: [{ text: truncatedResult }],
+            },
           });
         } catch (toolError) {
           console.error('Tool execution failed', {
@@ -445,14 +454,16 @@ async function invokeModelWithTools(userMessage: string): Promise<string> {
             error: toolError instanceof Error ? toolError.message : String(toolError),
           });
 
-          toolResults.push({
-            toolUseId: tool.toolUseId,
-            content: [
-              {
-                text: `Error executing tool: ${toolError instanceof Error ? toolError.message : String(toolError)}`,
-              },
-            ],
-            status: 'error',
+          toolResultContent.push({
+            toolResult: {
+              toolUseId: tool.toolUseId,
+              content: [
+                {
+                  text: `Error executing tool: ${toolError instanceof Error ? toolError.message : String(toolError)}`,
+                },
+              ],
+              status: 'error',
+            },
           });
         }
       }
@@ -460,7 +471,7 @@ async function invokeModelWithTools(userMessage: string): Promise<string> {
       // Add tool results to conversation
       messages.push({
         role: 'user',
-        content: toolResults,
+        content: toolResultContent,
       });
 
       // Continue the loop to get model's response with tool results
