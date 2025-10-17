@@ -6,6 +6,9 @@
 
 set -e
 
+# Get the directory where the script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -16,13 +19,13 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 # Load environment variables
-if [ ! -f ".env.local" ]; then
+if [ ! -f "$SCRIPT_DIR/.env.local" ]; then
     echo -e "${RED}Error: .env.local file not found${NC}"
     echo "Run deployment first: ./deploy.sh"
     exit 1
 fi
 
-source .env.local
+source "$SCRIPT_DIR/.env.local"
 
 # Check required variables
 if [ -z "$API_ENDPOINT" ] || [ -z "$API_KEY" ]; then
@@ -75,16 +78,14 @@ test_endpoint() {
         
         # Validate JSON response
         if echo "$BODY" | jq empty 2>/dev/null; then
-            # Show sample response
-            if [ ${#BODY} -gt 150 ]; then
-                echo -e "  Response: ${BODY:0:150}..."
-            else
-                echo -e "  Response: ${BODY}"
-            fi
+            # Show full response (pretty-printed if possible)
+            echo -e "  Response:"
+            echo "$BODY" | jq '.' 2>/dev/null || echo "$BODY"
         fi
     else
         echo -e "  ${RED}✗ FAILED${NC} (Expected: ${expected_status}, Got: ${HTTP_CODE})"
-        echo -e "  Response: ${BODY}"
+        echo -e "  Response:"
+        echo "$BODY" | jq '.' 2>/dev/null || echo "$BODY"
         FAILED_TESTS=$((FAILED_TESTS + 1))
     fi
     
@@ -124,7 +125,7 @@ test_endpoint \
     "POST /agent/query - Valid natural language query" \
     "POST" \
     "agent/query" \
-    '{"text": "What are the most urgent needs?"}' \
+    '{"text": "Show me critical medical incidents"}' \
     "200"
 
 # Test 5: POST /agent/query - Empty text

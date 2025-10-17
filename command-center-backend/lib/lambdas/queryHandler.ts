@@ -279,7 +279,7 @@ async function invokeModelWithTools(userMessage: string): Promise<string> {
         tools: [DATABASE_QUERY_TOOL],
       },
       inferenceConfig: {
-        maxTokens: 4096,
+        maxTokens: 2048, // Reduced to prevent timeouts and force concise responses
         temperature: 0.7,
         topP: 0.9,
       },
@@ -344,17 +344,19 @@ async function invokeModelWithTools(userMessage: string): Promise<string> {
             toolResult = { error: `Unknown tool: ${tool.name}` };
           }
 
+          const resultString = JSON.stringify(toolResult);
+          const maxSize = 5000; // 5KB limit for tool results to prevent timeouts
+          const wasTruncated = resultString.length > maxSize;
+          const truncatedResult = wasTruncated
+            ? resultString.substring(0, maxSize) + '... (truncated due to size, showing first 5KB of ' + resultString.length + ' bytes)'
+            : resultString;
+
           console.log('Tool execution completed', {
             toolName: tool.name,
-            resultSize: JSON.stringify(toolResult).length,
+            originalSize: resultString.length,
+            truncatedSize: truncatedResult.length,
+            wasTruncated,
           });
-
-          // Truncate large results to avoid SDK serialization issues
-          const resultString = JSON.stringify(toolResult);
-          const maxSize = 25000; // 25KB limit for tool results
-          const truncatedResult = resultString.length > maxSize
-            ? resultString.substring(0, maxSize) + '... (truncated)'
-            : resultString;
 
           toolResultContent.push({
             toolResult: {
