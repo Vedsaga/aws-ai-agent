@@ -21,11 +21,12 @@ export class DataStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // Create VPC for RDS and OpenSearch
+    // Create VPC with NO NAT Gateway (cost optimization)
+    // Use VPC Endpoints instead for AWS service access
     this.vpc = new ec2.Vpc(this, 'Vpc', {
       vpcName: `${id}-Vpc`,
       maxAzs: 2,
-      natGateways: 1,
+      natGateways: 0,  // COST OPTIMIZATION: No NAT Gateway ($23 saved)
       subnetConfiguration: [
         {
           cidrMask: 24,
@@ -35,14 +36,32 @@ export class DataStack extends cdk.Stack {
         {
           cidrMask: 24,
           name: 'Private',
-          subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
-        },
-        {
-          cidrMask: 28,
-          name: 'Isolated',
-          subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
+          subnetType: ec2.SubnetType.PRIVATE_ISOLATED,  // No internet access
         },
       ],
+    });
+
+    // Add VPC Endpoints for AWS services (replaces NAT Gateway)
+    // Bedrock endpoint for AI calls
+    this.vpc.addInterfaceEndpoint('BedrockEndpoint', {
+      service: ec2.InterfaceVpcEndpointAwsService.BEDROCK_RUNTIME,
+      subnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
+    });
+
+    // Secrets Manager endpoint
+    this.vpc.addInterfaceEndpoint('SecretsManagerEndpoint', {
+      service: ec2.InterfaceVpcEndpointAwsService.SECRETS_MANAGER,
+      subnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
+    });
+
+    // DynamoDB gateway endpoint (free!)
+    this.vpc.addGatewayEndpoint('DynamoDbEndpoint', {
+      service: ec2.GatewayVpcEndpointAwsService.DYNAMODB,
+    });
+
+    // S3 gateway endpoint (free!)
+    this.vpc.addGatewayEndpoint('S3Endpoint', {
+      service: ec2.GatewayVpcEndpointAwsService.S3,
     });
 
     // Create database credentials secret
@@ -57,40 +76,31 @@ export class DataStack extends cdk.Stack {
       },
     });
 
-    // Create RDS PostgreSQL instance - Cost optimized for demo
-    // Use environment variables for instance size configuration
-    const dbInstanceClass = process.env.DB_INSTANCE_CLASS || 'db.t3.micro';
-    const dbMultiAz = process.env.DB_MULTI_AZ === 'true';
-    const dbAllocatedStorage = parseInt(process.env.DB_ALLOCATED_STORAGE || '20');
-    
-    this.database = new rds.DatabaseInstance(this, 'Database', {
-      instanceIdentifier: `${id}-PostgreSQL`,
-      engine: rds.DatabaseInstanceEngine.postgres({
-        version: rds.PostgresEngineVersion.VER_15_4,
+    // COST OPTIMIZATION: Use Aurora Serverless v2 instead of RDS
+    // Scales down to 0.5 ACU when idle (~$0.06/hr vs $0.017/hr but auto-scales)
+    const cluster = new rds.DatabaseCluster(this, 'Database', {
+      engine: rds.DatabaseClusterEngine.auroraPostgres({
+        version: rds.AuroraPostgresEngineVersion.VER_15_4,
       }),
-      instanceType: ec2.InstanceType.of(
-        ec2.InstanceClass.T3,
-        ec2.InstanceSize.MICRO  // Smallest instance for demo
-      ),
+      credentials: rds.Credentials.fromSecret(this.databaseSecret),
+      defaultDatabaseName: 'multi_agent_orchestration',
       vpc: this.vpc,
       vpcSubnets: {
         subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
       },
-      multiAz: dbMultiAz,  // Single-AZ for demo to save costs
-      allocatedStorage: dbAllocatedStorage,  // Minimal storage
-      maxAllocatedStorage: 100,  // Lower max
-      storageType: rds.StorageType.GP3,
+      serverlessV2MinCapacity: 0.5,  // Minimum ACU (cost optimized)
+      serverlessV2MaxCapacity: 2,    // Maximum ACU for demo
+      writer: rds.ClusterInstance.serverlessV2('writer'),
+      backup: {
+        retention: cdk.Duration.days(1),  // Minimal backups
+      },
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      deletionProtection: false,
       storageEncrypted: true,
-      credentials: rds.Credentials.fromSecret(this.databaseSecret),
-      databaseName: 'multi_agent_orchestration',
-      backupRetention: cdk.Duration.days(1),  // Minimal backups
-      deleteAutomatedBackups: true,  // Clean up backups on delete
-      removalPolicy: cdk.RemovalPolicy.DESTROY,  // Allow deletion for demo
-      deletionProtection: false,  // Allow deletion for demo
-      enablePerformanceInsights: false,  // Disable to save costs
-      cloudwatchLogsExports: [],  // Minimal logging
-      autoMinorVersionUpgrade: true,
     });
+
+    // Expose as database property for compatibility
+    this.database = cluster as any;
 
     // Create Lambda function to initialize database schema
     const dbInitFunction = new lambda.Function(this, 'DbInitFunction', {
@@ -102,12 +112,12 @@ export class DataStack extends cdk.Stack {
       memorySize: 512,
       vpc: this.vpc,
       vpcSubnets: {
-        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+        subnetType: ec2.SubnetType.PRIVATE_ISOLATED,  // Changed for VPC Endpoints
       },
       environment: {
         DB_SECRET_ARN: this.databaseSecret.secretArn,
-        DB_HOST: this.database.dbInstanceEndpointAddress,
-        DB_PORT: this.database.dbInstanceEndpointPort,
+        DB_HOST: (this.database as any).clusterEndpoint.hostname,
+        DB_PORT: '5432',
         DB_NAME: 'multi_agent_orchestration',
       },
       description: 'Initializes database schema with tables and indexes',
@@ -213,7 +223,7 @@ export class DataStack extends cdk.Stack {
     const osInstanceType = process.env.OPENSEARCH_INSTANCE_TYPE || 't3.small.search';
     const osInstanceCount = parseInt(process.env.OPENSEARCH_INSTANCE_COUNT || '1');
     const osEbsVolumeSize = parseInt(process.env.OPENSEARCH_EBS_VOLUME_SIZE || '10');
-    
+
     this.openSearchDomain = new opensearch.Domain(this, 'OpenSearchDomain', {
       domainName: `maos-${stage}-search`,
       version: opensearch.EngineVersion.OPENSEARCH_2_11,
@@ -230,7 +240,7 @@ export class DataStack extends cdk.Stack {
       },
       vpc: this.vpc,
       vpcSubnets: [{
-        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+        subnetType: ec2.SubnetType.PRIVATE_ISOLATED,  // Changed from PRIVATE_WITH_EGRESS
       }],
       encryptionAtRest: {
         enabled: true,
@@ -255,7 +265,7 @@ export class DataStack extends cdk.Stack {
       memorySize: 512,
       vpc: this.vpc,
       vpcSubnets: {
-        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+        subnetType: ec2.SubnetType.PRIVATE_ISOLATED,  // Changed for VPC Endpoints
       },
       environment: {
         OPENSEARCH_ENDPOINT: this.openSearchDomain.domainEndpoint,
@@ -269,8 +279,8 @@ export class DataStack extends cdk.Stack {
 
     // Outputs
     new cdk.CfnOutput(this, 'DatabaseEndpoint', {
-      value: this.database.dbInstanceEndpointAddress,
-      description: 'RDS PostgreSQL Endpoint',
+      value: (this.database as any).clusterEndpoint.hostname,
+      description: 'Aurora Serverless v2 Cluster Endpoint',
       exportName: `${id}-DatabaseEndpoint`,
     });
 
@@ -295,8 +305,8 @@ export class DataStack extends cdk.Stack {
     // Store configuration in SSM Parameter Store
     new cdk.aws_ssm.StringParameter(this, 'DatabaseEndpointParameter', {
       parameterName: '/app/database/endpoint',
-      stringValue: this.database.dbInstanceEndpointAddress,
-      description: 'RDS PostgreSQL Endpoint',
+      stringValue: (this.database as any).clusterEndpoint.hostname,
+      description: 'Aurora Serverless v2 Cluster Endpoint',
     });
 
     new cdk.aws_ssm.StringParameter(this, 'DatabaseSecretArnParameter', {

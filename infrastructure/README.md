@@ -1,12 +1,11 @@
 # Multi-Agent Orchestration System - Infrastructure
 
-This directory contains the AWS CDK infrastructure code for the Multi-Agent Orchestration System.
+AWS CDK infrastructure for the Multi-Agent Orchestration System.
 
 ## 📚 Documentation
 
+- **[MORNING_DEPLOYMENT_GUIDE.md](./MORNING_DEPLOYMENT_GUIDE.md)** - Quick start deployment guide
 - **[Quick Start](#quick-start-deployment)** - Fast automated deployment
-- **[DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)** - Comprehensive deployment guide with troubleshooting
-- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Detailed manual deployment steps
 
 ## Prerequisites
 
@@ -694,116 +693,16 @@ Approximate monthly costs (us-east-1):
 
 **Total**: ~$300-400/month for development environment
 
-## Deployment Best Practices
+## 💰 Cost Estimate
 
-### For Development
+**3 Weeks:** $50-55  
+**Budget:** $100 credit  
+**Buffer:** $45-50
 
-1. **Use the automated script**: `npm run deploy:full` handles everything
-2. **Check readiness first**: Run `npm run check-readiness` before deploying
-3. **Monitor deployment**: Watch CloudFormation console for progress
-4. **Verify with smoke tests**: Always run `npm run smoke-test` after deployment
-5. **Keep .env file secure**: Never commit credentials to git
+See [MORNING_DEPLOYMENT_GUIDE.md](./MORNING_DEPLOYMENT_GUIDE.md) for details.
 
-### For Production
+## 📞 Support
 
-1. **Use separate AWS accounts**: Dev, staging, and production
-2. **Enable Multi-AZ**: For RDS and OpenSearch high availability
-3. **Configure backups**: Enable automated backups for RDS
-4. **Set up monitoring**: Create CloudWatch dashboards and alarms
-5. **Use larger instances**: Scale up RDS and OpenSearch for production load
-6. **Enable WAF**: Protect API Gateway with AWS WAF
-7. **Configure VPC**: Use private subnets for databases
-8. **Implement CI/CD**: Automate deployments with GitHub Actions or CodePipeline
-
-### Deployment Workflow
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Deployment Workflow                       │
-└─────────────────────────────────────────────────────────────┘
-
-1. Prerequisites Check
-   ├─ Node.js 18+
-   ├─ Python 3.11+
-   ├─ AWS CLI v2
-   ├─ AWS CDK CLI
-   └─ AWS Credentials
-        ↓
-2. Environment Setup
-   ├─ Create .env file
-   ├─ Set AWS_REGION
-   ├─ Set STAGE
-   └─ Set AWS_ACCOUNT_ID
-        ↓
-3. CDK Bootstrap (first time only)
-   └─ cdk bootstrap
-        ↓
-4. Deploy Infrastructure
-   ├─ Auth Stack (Cognito)
-   ├─ Storage Stack (S3)
-   ├─ Data Stack (RDS, DynamoDB, OpenSearch)
-   ├─ API Stack (API Gateway, Lambda)
-   ├─ Orchestration Stack (Step Functions)
-   └─ Realtime Stack (AppSync)
-        ↓
-5. Initialize Services
-   ├─ Database schema
-   ├─ OpenSearch indices
-   └─ Test user
-        ↓
-6. Load Seed Data
-   ├─ Tool registry
-   ├─ Agent configurations
-   ├─ Playbooks
-   └─ Sample data
-        ↓
-7. Verify Deployment
-   └─ Run smoke tests
-        ↓
-8. Ready for Use! 🎉
-```
-
-### Estimated Deployment Times
-
-| Phase | Duration | Notes |
-|-------|----------|-------|
-| Prerequisites check | 1 min | Instant if already installed |
-| CDK bootstrap | 2-3 min | Only needed once per account/region |
-| Auth Stack | 2-3 min | Cognito User Pool creation |
-| Storage Stack | 1-2 min | S3 bucket creation |
-| Data Stack | 15-20 min | RDS and OpenSearch take longest |
-| API Stack | 3-5 min | API Gateway and Lambda functions |
-| Orchestration Stack | 2-3 min | Step Functions state machines |
-| Realtime Stack | 2-3 min | AppSync API |
-| Service initialization | 2-3 min | Database and OpenSearch setup |
-| Seed data | 2-3 min | Loading configurations |
-| Smoke tests | 1-2 min | Verification |
-| **Total** | **25-35 min** | End-to-end automated deployment |
-
-### Resource Naming Convention
-
-All resources follow this naming pattern:
-
-```
-MultiAgentOrchestration-{STAGE}-{STACK}-{RESOURCE}
-
-Examples:
-- MultiAgentOrchestration-dev-Auth-UserPool
-- MultiAgentOrchestration-dev-Data-PostgresDB
-- MultiAgentOrchestration-prod-Api-IngestFunction
-```
-
-This makes it easy to:
-- Identify resources by environment
-- Filter CloudWatch logs
-- Track costs by stage
-- Clean up resources
-
-## Support
-
-For issues or questions, refer to:
+- [MORNING_DEPLOYMENT_GUIDE.md](./MORNING_DEPLOYMENT_GUIDE.md) - Troubleshooting
+- [QUICK_START.md](./QUICK_START.md) - Fast reference
 - [AWS CDK Documentation](https://docs.aws.amazon.com/cdk/)
-- [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) - Comprehensive deployment guide
-- [Project Requirements](../.kiro/specs/multi-agent-orchestration-system/requirements.md)
-- [Design Document](../.kiro/specs/multi-agent-orchestration-system/design.md)
-- [Troubleshooting](#troubleshooting) - Common issues and solutions
