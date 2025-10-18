@@ -1,0 +1,31 @@
+{
+  "name": "multi-agent-orchestration-infrastructure",
+  "version": "1.0.0",
+  "description": "AWS CDK infrastructure for Multi-Agent Orchestration System",
+  "main": "bin/app.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "cdk": "cdk",
+    "deploy": "cdk deploy --all",
+    "destroy": "cdk destroy --all",
+    "synth": "cdk synth",
+    "diff": "cdk diff",
+    "check-readiness": "./scripts/check-readiness.sh",
+    "deploy:full": "./scripts/deploy.sh",
+    "seed-data": "./scripts/seed-data.sh",
+    "smoke-test": "./scripts/smoke-test.sh"
+  },
+  "keywords": ["aws", "cdk", "multi-agent", "orchestration"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "aws-cdk": "^2.100.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.100.0",
+    "constructs": "^10.3.0"
+  }
+}

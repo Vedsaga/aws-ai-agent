@@ -1,0 +1,30 @@
+type StatusUpdate {
+  jobId: ID!
+  userId: ID!
+  agentName: String
+  status: String!
+  message: String!
+  timestamp: AWSDateTime!
+  metadata: AWSJSON
+}
+
+type Mutation {
+  publishStatus(
+    jobId: ID!
+    userId: ID!
+    agentName: String
+    status: String!
+    message: String!
+    metadata: AWSJSON
+  ): StatusUpdate
+}
+
+type Subscription {
+  onStatusUpdate(userId: ID!): StatusUpdate
+    @aws_subscribe(mutations: ["publishStatus"])
+}
+
+schema {
+  mutation: Mutation
+  subscription: Subscription
+}

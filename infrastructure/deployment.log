@@ -1,0 +1,145 @@
+
+==========================================
+Multi-Agent Orchestration System
+Automated Deployment Script
+==========================================
+
+[0;34m[INFO][0m Checking prerequisites...
+[0;32m[SUCCESS][0m Node.js v24.9.0 detected
+[0;32m[SUCCESS][0m AWS CLI aws-cli/2.31.16 detected
+[0;32m[SUCCESS][0m AWS CDK 2.1030.0 (build e46adaf) detected
+[0;32m[SUCCESS][0m Python Python 3.13.7 detected
+[0;32m[SUCCESS][0m AWS credentials verified: arn:aws:iam::847272187168:user/Command-center-hackathon-Administrator-Access
+[0;34m[INFO][0m AWS Account: 847272187168
+[0;34m[INFO][0m Loading environment configuration...
+[0;32m[SUCCESS][0m Environment loaded: Region=us-east-1, Stage=demo, Account=847272187168
+[0;34m[INFO][0m Installing dependencies...
+
+up to date, audited 46 packages in 1s
+
+4 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+[0;32m[SUCCESS][0m CDK dependencies installed
+[0;34m[INFO][0m Building TypeScript...
+
+> multi-agent-orchestration-infrastructure@1.0.0 build
+> tsc
+
+[0;32m[SUCCESS][0m TypeScript build complete
+[0;34m[INFO][0m Checking CDK bootstrap status...
+[0;32m[SUCCESS][0m CDK already bootstrapped in us-east-1
+[0;34m[INFO][0m Deploying CDK stacks...
+[1;33m[WARNING][0m This will take approximately 25-30 minutes
+[0;34m[INFO][0m Deploying all stacks...
+
+✨  Synthesis time: 4.88s
+
+MultiAgentOrchestration-demo-Auth
+MultiAgentOrchestration-demo-Auth: deploying... [1/4]
+MultiAgentOrchestration-demo-Data: start: Building MultiAgentOrchestration-demo-Data/Custom::VpcRestrictDefaultSGCustomResourceProvider Code
+MultiAgentOrchestration-demo-Data: success: Built MultiAgentOrchestration-demo-Data/Custom::VpcRestrictDefaultSGCustomResourceProvider Code
+MultiAgentOrchestration-demo-Data: start: Building DbInitFunction/Code
+MultiAgentOrchestration-demo-Data: success: Built DbInitFunction/Code
+MultiAgentOrchestration-demo-Data: start: Building OpenSearchInitFunction/Code
+MultiAgentOrchestration-demo-Data: success: Built OpenSearchInitFunction/Code
+MultiAgentOrchestration-demo-Data: start: Building MultiAgentOrchestration-demo-Data Template
+MultiAgentOrchestration-demo-Data: success: Built MultiAgentOrchestration-demo-Data Template
+MultiAgentOrchestration-demo-Api: start: Building ConfigHandler/Code
+MultiAgentOrchestration-demo-Api: success: Built ConfigHandler/Code
+MultiAgentOrchestration-demo-Api: start: Building MultiAgentOrchestration-demo-Api Template
+MultiAgentOrchestration-demo-Api: success: Built MultiAgentOrchestration-demo-Api Template
+
+ ✅  MultiAgentOrchestration-demo-Auth (no changes)
+
+✨  Deployment time: 5.33s
+
+Outputs:
+MultiAgentOrchestration-demo-Auth.AuthorizerFunctionArn = arn:aws:lambda:us-east-1:847272187168:function:MultiAgentOrchestration-demo-Auth-Authorizer
+MultiAgentOrchestration-demo-Auth.UserPoolClientId = 6sdn9ld4shte62kgshlvukkilh
+MultiAgentOrchestration-demo-Auth.UserPoolId = us-east-1_BHH7AVAnR
+Stack ARN:
+arn:aws:cloudformation:us-east-1:847272187168:stack/MultiAgentOrchestration-demo-Auth/651356a0-ac51-11f0-b22a-12fda5fe58a3
+
+✨  Total time: 10.21s
+
+MultiAgentOrchestration-demo-Storage
+MultiAgentOrchestration-demo-Storage: deploying... [2/4]
+MultiAgentOrchestration-demo-Storage: creating CloudFormation changeset...
+MultiAgentOrchestration-demo-Storage | 0/8 | 12:16:51 AM | REVIEW_IN_PROGRESS   | AWS::CloudFormation::Stack | MultiAgentOrchestration-demo-Storage User Initiated
+MultiAgentOrchestration-demo-Storage | 0/8 | 12:17:01 AM | CREATE_IN_PROGRESS   | AWS::CloudFormation::Stack | MultiAgentOrchestration-demo-Storage User Initiated
+MultiAgentOrchestration-demo-Storage | 0/8 | 12:17:04 AM | CREATE_IN_PROGRESS   | AWS::CDK::Metadata         | CDKMetadata/Default (CDKMetadata) 
+MultiAgentOrchestration-demo-Storage | 0/8 | 12:17:04 AM | CREATE_IN_PROGRESS   | AWS::S3::Bucket            | ConfigBackupBucket (ConfigBackupBucketC7FE0005) 
+MultiAgentOrchestration-demo-Storage | 0/8 | 12:17:04 AM | CREATE_IN_PROGRESS   | AWS::S3::Bucket            | EvidenceBucket (EvidenceBucketFBA44255) 
+MultiAgentOrchestration-demo-Storage | 0/8 | 12:17:05 AM | CREATE_IN_PROGRESS   | AWS::CDK::Metadata         | CDKMetadata/Default (CDKMetadata) Resource creation Initiated
+MultiAgentOrchestration-demo-Storage | 0/8 | 12:17:05 AM | CREATE_IN_PROGRESS   | AWS::S3::Bucket            | ConfigBackupBucket (ConfigBackupBucketC7FE0005) Resource creation Initiated
+MultiAgentOrchestration-demo-Storage | 1/8 | 12:17:05 AM | CREATE_COMPLETE      | AWS::CDK::Metadata         | CDKMetadata/Default (CDKMetadata) 
+MultiAgentOrchestration-demo-Storage | 1/8 | 12:17:05 AM | CREATE_IN_PROGRESS   | AWS::S3::Bucket            | EvidenceBucket (EvidenceBucketFBA44255) Resource creation Initiated
+MultiAgentOrchestration-demo-Storage | 2/8 | 12:17:19 AM | CREATE_COMPLETE      | AWS::S3::Bucket            | ConfigBackupBucket (ConfigBackupBucketC7FE0005) 
+MultiAgentOrchestration-demo-Storage | 3/8 | 12:17:19 AM | CREATE_COMPLETE      | AWS::S3::Bucket            | EvidenceBucket (EvidenceBucketFBA44255) 
+MultiAgentOrchestration-demo-Storage | 3/8 | 12:17:19 AM | CREATE_IN_PROGRESS   | AWS::SSM::Parameter        | ConfigBackupBucketNameParameter (ConfigBackupBucketNameParameter84401F99) 
+MultiAgentOrchestration-demo-Storage | 3/8 | 12:17:20 AM | CREATE_IN_PROGRESS   | AWS::SSM::Parameter        | EvidenceBucketNameParameter (EvidenceBucketNameParameterA43ECC94) 
+MultiAgentOrchestration-demo-Storage | 3/8 | 12:17:20 AM | CREATE_IN_PROGRESS   | AWS::S3::BucketPolicy      | ConfigBackupBucket/Policy (ConfigBackupBucketPolicy9554940C) 
+MultiAgentOrchestration-demo-Storage | 3/8 | 12:17:20 AM | CREATE_IN_PROGRESS   | AWS::SSM::Parameter        | ConfigBackupBucketNameParameter (ConfigBackupBucketNameParameter84401F99) Resource creation Initiated
+MultiAgentOrchestration-demo-Storage | 3/8 | 12:17:20 AM | CREATE_IN_PROGRESS   | AWS::S3::BucketPolicy      | EvidenceBucket/Policy (EvidenceBucketPolicy5657A7FB) 
+MultiAgentOrchestration-demo-Storage | 3/8 | 12:17:21 AM | CREATE_IN_PROGRESS   | AWS::SSM::Parameter        | EvidenceBucketNameParameter (EvidenceBucketNameParameterA43ECC94) Resource creation Initiated
+MultiAgentOrchestration-demo-Storage | 4/8 | 12:17:21 AM | CREATE_COMPLETE      | AWS::SSM::Parameter        | ConfigBackupBucketNameParameter (ConfigBackupBucketNameParameter84401F99) 
+MultiAgentOrchestration-demo-Storage | 4/8 | 12:17:21 AM | CREATE_IN_PROGRESS   | AWS::S3::BucketPolicy      | ConfigBackupBucket/Policy (ConfigBackupBucketPolicy9554940C) Resource creation Initiated
+MultiAgentOrchestration-demo-Storage | 5/8 | 12:17:21 AM | CREATE_COMPLETE      | AWS::SSM::Parameter        | EvidenceBucketNameParameter (EvidenceBucketNameParameterA43ECC94) 
+MultiAgentOrchestration-demo-Storage | 5/8 | 12:17:21 AM | CREATE_IN_PROGRESS   | AWS::S3::BucketPolicy      | EvidenceBucket/Policy (EvidenceBucketPolicy5657A7FB) Resource creation Initiated
+MultiAgentOrchestration-demo-Storage | 6/8 | 12:17:22 AM | CREATE_COMPLETE      | AWS::S3::BucketPolicy      | ConfigBackupBucket/Policy (ConfigBackupBucketPolicy9554940C) 
+MultiAgentOrchestration-demo-Storage | 7/8 | 12:17:22 AM | CREATE_COMPLETE      | AWS::S3::BucketPolicy      | EvidenceBucket/Policy (EvidenceBucketPolicy5657A7FB) 
+MultiAgentOrchestration-demo-Storage | 8/8 | 12:17:23 AM | CREATE_COMPLETE      | AWS::CloudFormation::Stack | MultiAgentOrchestration-demo-Storage 
+
+ ✅  MultiAgentOrchestration-demo-Storage
+
+✨  Deployment time: 47.92s
+
+Outputs:
+MultiAgentOrchestration-demo-Storage.ConfigBackupBucketName = multiagentorchestration-demo-storage-config-backup-847272187168
+MultiAgentOrchestration-demo-Storage.EvidenceBucketArn = arn:aws:s3:::multiagentorchestration-demo-storage-evidence-847272187168
+MultiAgentOrchestration-demo-Storage.EvidenceBucketName = multiagentorchestration-demo-storage-evidence-847272187168
+MultiAgentOrchestration-demo-Storage.ExportsOutputFnGetAttConfigBackupBucketC7FE0005Arn342E761F = arn:aws:s3:::multiagentorchestration-demo-storage-config-backup-847272187168
+MultiAgentOrchestration-demo-Storage.ExportsOutputRefConfigBackupBucketC7FE00054A2CC8B8 = multiagentorchestration-demo-storage-config-backup-847272187168
+Stack ARN:
+arn:aws:cloudformation:us-east-1:847272187168:stack/MultiAgentOrchestration-demo-Storage/cf4fe1e0-ac52-11f0-b084-129eb5efe0f3
+
+✨  Total time: 52.8s
+
+MultiAgentOrchestration-demo-Data: start: Publishing DbInitFunction/Code (847272187168-us-east-1-1f5e03e1)
+MultiAgentOrchestration-demo-Data: start: Publishing MultiAgentOrchestration-demo-Data Template (847272187168-us-east-1-95a3231d)
+MultiAgentOrchestration-demo-Data: start: Publishing OpenSearchInitFunction/Code (847272187168-us-east-1-946ccaf4)
+MultiAgentOrchestration-demo-Data: start: Publishing MultiAgentOrchestration-demo-Data/Custom::VpcRestrictDefaultSGCustomResourceProvider Code (847272187168-us-east-1-630bfa70)
+MultiAgentOrchestration-demo-Data: success: Published OpenSearchInitFunction/Code (847272187168-us-east-1-946ccaf4)
+MultiAgentOrchestration-demo-Data: success: Published DbInitFunction/Code (847272187168-us-east-1-1f5e03e1)
+MultiAgentOrchestration-demo-Data: success: Published MultiAgentOrchestration-demo-Data Template (847272187168-us-east-1-95a3231d)
+MultiAgentOrchestration-demo-Data: success: Published MultiAgentOrchestration-demo-Data/Custom::VpcRestrictDefaultSGCustomResourceProvider Code (847272187168-us-east-1-630bfa70)
+MultiAgentOrchestration-demo-Data
+MultiAgentOrchestration-demo-Data: deploying... [3/4]
+MultiAgentOrchestration-demo-Data: creating CloudFormation changeset...
+MultiAgentOrchestration-demo-Data |  0/56 | 12:17:52 AM | REVIEW_IN_PROGRESS   | AWS::CloudFormation::Stack                  | MultiAgentOrchestration-demo-Data User Initiated
+MultiAgentOrchestration-demo-Data |  0/56 | 12:18:01 AM | CREATE_IN_PROGRESS   | AWS::CloudFormation::Stack                  | MultiAgentOrchestration-demo-Data User Initiated
+MultiAgentOrchestration-demo-Data |  0/56 | 12:18:05 AM | CREATE_IN_PROGRESS   | AWS::EC2::InternetGateway                   | Vpc/IGW (VpcIGWD7BA715C) 
+MultiAgentOrchestration-demo-Data |  0/56 | 12:18:05 AM | CREATE_IN_PROGRESS   | AWS::SecretsManager::Secret                 | DatabaseSecret (DatabaseSecret86DBB7B3) 
+MultiAgentOrchestration-demo-Data |  0/56 | 12:18:05 AM | CREATE_IN_PROGRESS   | AWS::DynamoDB::Table                        | UserSessionsTable (UserSessionsTable6F92E803) 
+MultiAgentOrchestration-demo-Data |  0/56 | 12:18:05 AM | CREATE_IN_PROGRESS   | AWS::CDK::Metadata                          | CDKMetadata/Default (CDKMetadata) 
+MultiAgentOrchestration-demo-Data |  0/56 | 12:18:05 AM | CREATE_IN_PROGRESS   | AWS::EC2::VPC                               | Vpc (Vpc8378EB38) 
+MultiAgentOrchestration-demo-Data |  0/56 | 12:18:05 AM | CREATE_IN_PROGRESS   | AWS::DynamoDB::Table                        | ConfigurationsTable (ConfigurationsTable47A95017) 
+MultiAgentOrchestration-demo-Data |  0/56 | 12:18:05 AM | CREATE_IN_PROGRESS   | AWS::EC2::EIP                               | Vpc/PublicSubnet1/EIP (VpcPublicSubnet1EIPD7E02669) 
+MultiAgentOrchestration-demo-Data |  0/56 | 12:18:05 AM | CREATE_IN_PROGRESS   | AWS::DynamoDB::Table                        | ToolCatalogTable (ToolCatalogTableEE510D7A) 
+MultiAgentOrchestration-demo-Data |  0/56 | 12:18:05 AM | CREATE_IN_PROGRESS   | AWS::DynamoDB::Table                        | ToolPermissionsTable (ToolPermissionsTable18953D93) 
+MultiAgentOrchestration-demo-Data |  0/56 | 12:18:06 AM | CREATE_IN_PROGRESS   | AWS::CDK::Metadata                          | CDKMetadata/Default (CDKMetadata) Resource creation Initiated
+MultiAgentOrchestration-demo-Data |  0/56 | 12:18:06 AM | CREATE_IN_PROGRESS   | AWS::EC2::InternetGateway                   | Vpc/IGW (VpcIGWD7BA715C) Resource creation Initiated
+MultiAgentOrchestration-demo-Data |  1/56 | 12:18:06 AM | CREATE_COMPLETE      | AWS::CDK::Metadata                          | CDKMetadata/Default (CDKMetadata) 
+MultiAgentOrchestration-demo-Data |  1/56 | 12:18:06 AM | CREATE_IN_PROGRESS   | AWS::SecretsManager::Secret                 | DatabaseSecret (DatabaseSecret86DBB7B3) Resource creation Initiated
+MultiAgentOrchestration-demo-Data |  1/56 | 12:18:06 AM | CREATE_IN_PROGRESS   | AWS::DynamoDB::Table                        | ToolPermissionsTable (ToolPermissionsTable18953D93) Resource creation Initiated
+MultiAgentOrchestration-demo-Data |  1/56 | 12:18:06 AM | CREATE_IN_PROGRESS   | AWS::DynamoDB::Table                        | ToolCatalogTable (ToolCatalogTableEE510D7A) Resource creation Initiated
+MultiAgentOrchestration-demo-Data |  1/56 | 12:18:06 AM | CREATE_IN_PROGRESS   | AWS::DynamoDB::Table                        | UserSessionsTable (UserSessionsTable6F92E803) Resource creation Initiated
+MultiAgentOrchestration-demo-Data |  1/56 | 12:18:06 AM | CREATE_IN_PROGRESS   | AWS::DynamoDB::Table                        | ConfigurationsTable (ConfigurationsTable47A95017) Resource creation Initiated
+MultiAgentOrchestration-demo-Data |  1/56 | 12:18:06 AM | CREATE_IN_PROGRESS   | AWS::EC2::VPC                               | Vpc (Vpc8378EB38) Resource creation Initiated
+MultiAgentOrchestration-demo-Data |  1/56 | 12:18:07 AM | CREATE_IN_PROGRESS   | AWS::EC2::InternetGateway                   | Vpc/IGW (VpcIGWD7BA715C) Eventual consistency check initiated
+MultiAgentOrchestration-demo-Data |  1/56 | 12:18:07 AM | CREATE_IN_PROGRESS   | AWS::EC2::EIP                               | Vpc/PublicSubnet1/EIP (VpcPublicSubnet1EIPD7E02669) Resource creation Initiated
+MultiAgentOrchestration-demo-Data |  2/56 | 12:18:07 AM | CREATE_COMPLETE      | AWS::SecretsManager::Secret                 | DatabaseSecret (DatabaseSecret86DBB7B3) 
+MultiAgentOrchestration-demo-Data |  2/56 | 12:18:07 AM | CREATE_IN_PROGRESS   | AWS::EC2::EIP                               | Vpc/PublicSubnet1/EIP (VpcPublicSubnet1EIPD7E02669) Eventual consistency check initiated
+MultiAgentOrchestration-demo-Data |  2/56 | 12:18:08 AM | CREATE_IN_PROGRESS   | AWS::SSM::Parameter                         | DatabaseSecretArnParameter (DatabaseSecretArnParameter79D5ACB2) 

@@ -1,0 +1,153 @@
+{
+  "built_in_tools": [
+    {
+      "tool_name": "bedrock",
+      "tool_type": "aws_service",
+      "endpoint": "bedrock-runtime",
+      "auth_method": "iam",
+      "description": "AWS Bedrock for LLM capabilities (Claude 3)",
+      "parameters_schema": {
+        "prompt": "string (required)",
+        "system_prompt": "string (optional)",
+        "max_tokens": "integer (optional)",
+        "temperature": "float (optional)",
+        "model_id": "string (optional)"
+      },
+      "is_builtin": true
+    },
+    {
+      "tool_name": "comprehend",
+      "tool_type": "aws_service",
+      "endpoint": "comprehend",
+      "auth_method": "iam",
+      "description": "AWS Comprehend for entity extraction and sentiment analysis",
+      "parameters_schema": {
+        "text": "string (required)",
+        "language_code": "string (optional, default: en)",
+        "analysis_type": "string (optional: entities|sentiment|key_phrases|all)"
+      },
+      "is_builtin": true
+    },
+    {
+      "tool_name": "location_service",
+      "tool_type": "aws_service",
+      "endpoint": "location",
+      "auth_method": "iam",
+      "description": "Amazon Location Service for geocoding and routing",
+      "parameters_schema": {
+        "operation": "string (required: geocode|reverse_geocode|calculate_route)",
+        "address": "string (for geocode)",
+        "latitude": "float (for reverse_geocode)",
+        "longitude": "float (for reverse_geocode)",
+        "departure_position": "array [lon, lat] (for calculate_route)",
+        "destination_position": "array [lon, lat] (for calculate_route)",
+        "travel_mode": "string (optional: Car|Truck|Walking)",
+        "max_results": "integer (optional)"
+      },
+      "is_builtin": true
+    },
+    {
+      "tool_name": "web_search",
+      "tool_type": "external_api",
+      "endpoint": "external-search-api",
+      "auth_method": "api_key",
+      "description": "Web search API for external information retrieval",
+      "parameters_schema": {
+        "query": "string (required)",
+        "max_results": "integer (optional, default: 5)"
+      },
+      "is_builtin": true
+    },
+    {
+      "tool_name": "retrieval_api",
+      "tool_type": "data_api",
+      "endpoint": "internal-data-api",
+      "auth_method": "iam",
+      "description": "Retrieval API for querying stored incidents with filters",
+      "parameters_schema": {
+        "tenant_id": "string (required)",
+        "filters": {
+          "domain_id": "string (optional)",
+          "date_from": "ISO date string (optional)",
+          "date_to": "ISO date string (optional)",
+          "location": "string (optional)",
+          "category": "string (optional)",
+          "custom_filters": "object (optional)"
+        },
+        "limit": "integer (optional, default: 100)",
+        "offset": "integer (optional, default: 0)"
+      },
+      "is_builtin": true
+    },
+    {
+      "tool_name": "aggregation_api",
+      "tool_type": "data_api",
+      "endpoint": "internal-data-api",
+      "auth_method": "iam",
+      "description": "Aggregation API for statistics and summaries",
+      "parameters_schema": {
+        "tenant_id": "string (required)",
+        "domain_id": "string (optional)",
+        "group_by": "string (required: domain|date|category|location)",
+        "metric": "string (required: count|avg|sum|min|max)",
+        "field": "string (optional, for numeric metrics)"
+      },
+      "is_builtin": true
+    },
+    {
+      "tool_name": "spatial_api",
+      "tool_type": "data_api",
+      "endpoint": "internal-data-api",
+      "auth_method": "iam",
+      "description": "Spatial Query API for geospatial queries using PostGIS",
+      "parameters_schema": {
+        "tenant_id": "string (required)",
+        "query_type": "string (required: radius|bbox|polygon)",
+        "parameters": {
+          "center_lat": "float (for radius)",
+          "center_lon": "float (for radius)",
+          "radius_km": "float (for radius)",
+          "min_lat": "float (for bbox)",
+          "max_lat": "float (for bbox)",
+          "min_lon": "float (for bbox)",
+          "max_lon": "float (for bbox)",
+          "polygon": "array [[lat, lon], ...] (for polygon)"
+        },
+        "domain_id": "string (optional)",
+        "limit": "integer (optional, default: 100)"
+      },
+      "is_builtin": true
+    },
+    {
+      "tool_name": "analytics_api",
+      "tool_type": "data_api",
+      "endpoint": "internal-data-api",
+      "auth_method": "iam",
+      "description": "Analytics API for trend detection and pattern recognition",
+      "parameters_schema": {
+        "tenant_id": "string (required)",
+        "domain_id": "string (optional)",
+        "analysis_type": "string (required: time_series|pattern|correlation)",
+        "field": "string (required)",
+        "field2": "string (for correlation)",
+        "time_bucket": "string (optional: hour|day|week|month, for time_series)"
+      },
+      "is_builtin": true
+    },
+    {
+      "tool_name": "vector_search",
+      "tool_type": "data_api",
+      "endpoint": "internal-opensearch",
+      "auth_method": "iam",
+      "description": "Vector Search API for semantic similarity search",
+      "parameters_schema": {
+        "query_text": "string (required)",
+        "tenant_id": "string (required)",
+        "domain_id": "string (optional)",
+        "top_k": "integer (optional, default: 10)",
+        "min_score": "float (optional, default: 0.7)"
+      },
+      "is_builtin": true
+    }
+  ]
+}

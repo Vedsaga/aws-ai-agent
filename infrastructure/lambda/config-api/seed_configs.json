@@ -1,0 +1,319 @@
+{
+  "domain_templates": [
+    {
+      "template_name": "Civic Complaints",
+      "domain_id": "civic_complaints",
+      "description": "Template for civic complaint reporting and analysis with location, time, and entity extraction",
+      "agent_configs": [
+        {
+          "agent_id": "geo_agent",
+          "agent_name": "Geo Agent",
+          "agent_type": "ingestion",
+          "system_prompt": "Extract location information from the complaint text. Identify addresses, landmarks, neighborhoods, and geographic references. Use Amazon Location Service for geocoding when specific addresses are mentioned. If the location is ambiguous, use web search to find the most likely location based on context.",
+          "tools": ["bedrock", "location_service", "web_search"],
+          "output_schema": {
+            "location": "string",
+            "coordinates": "array",
+            "address": "string",
+            "confidence": "number"
+          },
+          "is_builtin": true
+        },
+        {
+          "agent_id": "temporal_agent",
+          "agent_name": "Temporal Agent",
+          "agent_type": "ingestion",
+          "system_prompt": "Extract time and date information from the complaint text. Parse relative time expressions like 'today', 'yesterday', 'last week', 'this morning'. Convert all times to ISO 8601 format timestamps. Determine the urgency based on how recent the incident is.",
+          "tools": ["bedrock"],
+          "output_schema": {
+            "timestamp": "string",
+            "time_reference": "string",
+            "urgency": "string"
+          },
+          "is_builtin": true
+        },
+        {
+          "agent_id": "entity_agent",
+          "agent_name": "Entity Agent",
+          "agent_type": "ingestion",
+          "system_prompt": "Extract entities, sentiment, and key phrases from the complaint. Use AWS Comprehend to identify named entities (people, organizations, locations). Analyze the sentiment (positive, negative, neutral, mixed). Extract key phrases that summarize the main issues. Categorize the complaint type (infrastructure, safety, environment, etc.).",
+          "tools": ["bedrock", "comprehend"],
+          "output_schema": {
+            "entities": "array",
+            "sentiment": "string",
+            "key_phrases": "array",
+            "category": "string"
+          },
+          "is_builtin": true
+        },
+        {
+          "agent_id": "severity_classifier",
+          "agent_name": "Severity Classifier",
+          "agent_type": "custom",
+          "system_prompt": "Classify the severity of the complaint on a scale of 1-10 based on the entities, sentiment, and context. Consider factors like safety risks, number of people affected, urgency, and potential for escalation. Provide reasoning for the severity score and recommend appropriate actions.",
+          "tools": ["bedrock"],
+          "output_schema": {
+            "severity": "number",
+            "reasoning": "string",
+            "urgency_level": "string",
+            "recommended_action": "string"
+          },
+          "dependency_parent": "entity_agent",
+          "is_builtin": false
+        }
+      ],
+      "playbook_configs": [
+        {
+          "playbook_type": "ingestion",
+          "agent_ids": ["geo_agent", "temporal_agent", "entity_agent", "severity_classifier"],
+          "description": "Ingestion pipeline for civic complaints with location, time, entity extraction, and severity classification"
+        },
+        {
+          "playbook_type": "query",
+          "agent_ids": ["when_agent", "where_agent", "what_agent", "why_agent"],
+          "description": "Query pipeline for analyzing civic complaints"
+        }
+      ],
+      "dependency_graph_configs": [
+        {
+          "edges": [
+            {
+              "from": "entity_agent",
+              "to": "severity_classifier"
+            }
+          ]
+        }
+      ],
+      "ui_template": {
+        "form_fields": [
+          {
+            "name": "complaint_text",
+            "type": "textarea",
+            "label": "Describe your complaint",
+            "required": true
+          },
+          {
+            "name": "images",
+            "type": "file",
+            "label": "Upload images (optional)",
+            "max_files": 5,
+            "max_size_mb": 5
+          }
+        ],
+        "map_config": {
+          "default_zoom": 12,
+          "marker_color": "#FF5733"
+        }
+      },
+      "is_builtin": true
+    },
+    {
+      "template_name": "Disaster Response",
+      "domain_id": "disaster_response",
+      "description": "Template for disaster reporting and emergency response with location and severity assessment",
+      "agent_configs": [
+        {
+          "agent_id": "geo_agent_disaster",
+          "agent_name": "Geo Agent",
+          "agent_type": "ingestion",
+          "system_prompt": "Extract precise location information from disaster reports. Identify the affected area, coordinates, and nearby landmarks. Use Amazon Location Service for accurate geocoding. Estimate the size of the affected area if mentioned.",
+          "tools": ["bedrock", "location_service"],
+          "output_schema": {
+            "location": "string",
+            "coordinates": "array",
+            "affected_area": "string"
+          },
+          "is_builtin": true
+        },
+        {
+          "agent_id": "severity_agent_disaster",
+          "agent_name": "Severity Agent",
+          "agent_type": "ingestion",
+          "system_prompt": "Assess the severity and urgency of the disaster report. Classify the disaster type (flood, fire, earthquake, etc.). Estimate casualties, damage level, and immediate needs. Determine the urgency level for emergency response.",
+          "tools": ["bedrock"],
+          "output_schema": {
+            "severity": "string",
+            "urgency_level": "number",
+            "casualties": "string",
+            "damage_type": "string"
+          },
+          "is_builtin": true
+        }
+      ],
+      "playbook_configs": [
+        {
+          "playbook_type": "ingestion",
+          "agent_ids": ["geo_agent_disaster", "severity_agent_disaster"],
+          "description": "Ingestion pipeline for disaster reports with location and severity assessment"
+        }
+      ],
+      "dependency_graph_configs": [],
+      "ui_template": {
+        "form_fields": [
+          {
+            "name": "disaster_report",
+            "type": "textarea",
+            "label": "Describe the disaster situation",
+            "required": true
+          },
+          {
+            "name": "images",
+            "type": "file",
+            "label": "Upload images of the disaster",
+            "max_files": 5,
+            "max_size_mb": 5
+          }
+        ],
+        "map_config": {
+          "default_zoom": 10,
+          "marker_color": "#FF0000"
+        }
+      },
+      "is_builtin": true
+    },
+    {
+      "template_name": "Agriculture",
+      "domain_id": "agriculture",
+      "description": "Template for agricultural reporting and analysis with crop and location information",
+      "agent_configs": [
+        {
+          "agent_id": "crop_agent",
+          "agent_name": "Crop Agent",
+          "agent_type": "ingestion",
+          "system_prompt": "Extract crop type, condition, and issues from agricultural reports. Identify the crop species, growth stage, health condition, and any problems (pests, diseases, weather damage). Provide recommendations if issues are detected.",
+          "tools": ["bedrock"],
+          "output_schema": {
+            "crop_type": "string",
+            "condition": "string",
+            "issues": "array",
+            "growth_stage": "string"
+          },
+          "is_builtin": true
+        },
+        {
+          "agent_id": "geo_agent_agriculture",
+          "agent_name": "Geo Agent",
+          "agent_type": "ingestion",
+          "system_prompt": "Extract farm location and field information from agricultural reports. Identify the farm address, field coordinates, and field size if mentioned. Use Amazon Location Service for geocoding.",
+          "tools": ["bedrock", "location_service"],
+          "output_schema": {
+            "location": "string",
+            "coordinates": "array",
+            "field_size": "string"
+          },
+          "is_builtin": true
+        }
+      ],
+      "playbook_configs": [
+        {
+          "playbook_type": "ingestion",
+          "agent_ids": ["crop_agent", "geo_agent_agriculture"],
+          "description": "Ingestion pipeline for agricultural reports with crop and location information"
+        }
+      ],
+      "dependency_graph_configs": [],
+      "ui_template": {
+        "form_fields": [
+          {
+            "name": "farm_report",
+            "type": "textarea",
+            "label": "Describe the crop condition and any issues",
+            "required": true
+          },
+          {
+            "name": "images",
+            "type": "file",
+            "label": "Upload images of crops",
+            "max_files": 5,
+            "max_size_mb": 5
+          }
+        ],
+        "map_config": {
+          "default_zoom": 14,
+          "marker_color": "#00FF00"
+        }
+      },
+      "is_builtin": true
+    }
+  ],
+  "query_agents": [
+    {
+      "agent_name": "When Agent",
+      "agent_type": "query",
+      "interrogative": "when",
+      "system_prompt": "Analyze temporal patterns in the data. Answer questions about when incidents occurred, time trends, frequency over time periods, and temporal correlations. Use the Data Query APIs to retrieve time-series data.",
+      "tools": ["bedrock", "retrieval_api", "analytics_api"],
+      "output_schema": {
+        "time_pattern": "string",
+        "frequency": "string",
+        "trend": "string"
+      },
+      "is_builtin": true
+    },
+    {
+      "agent_name": "Where Agent",
+      "agent_type": "query",
+      "interrogative": "where",
+      "system_prompt": "Analyze spatial patterns in the data. Answer questions about where incidents occurred, geographic clusters, hotspots, and spatial distributions. Use the Spatial Query API for geospatial analysis.",
+      "tools": ["bedrock", "spatial_api", "retrieval_api"],
+      "output_schema": {
+        "locations": "array",
+        "hotspots": "array",
+        "distribution": "string"
+      },
+      "is_builtin": true
+    },
+    {
+      "agent_name": "What Agent",
+      "agent_type": "query",
+      "interrogative": "what",
+      "system_prompt": "Analyze what types of incidents occurred. Answer questions about incident categories, common issues, entity types, and content patterns. Use the Retrieval API to get incident details.",
+      "tools": ["bedrock", "retrieval_api", "aggregation_api"],
+      "output_schema": {
+        "incident_types": "array",
+        "common_issues": "array",
+        "summary": "string"
+      },
+      "is_builtin": true
+    },
+    {
+      "agent_name": "Why Agent",
+      "agent_type": "query",
+      "interrogative": "why",
+      "system_prompt": "Analyze causal relationships and reasons behind incidents. Answer questions about why incidents occurred, root causes, contributing factors, and correlations. Use the Analytics API for pattern detection.",
+      "tools": ["bedrock", "analytics_api", "retrieval_api"],
+      "output_schema": {
+        "causes": "array",
+        "factors": "array",
+        "analysis": "string"
+      },
+      "is_builtin": true
+    },
+    {
+      "agent_name": "How Agent",
+      "agent_type": "query",
+      "interrogative": "how",
+      "system_prompt": "Analyze methods, processes, and mechanisms. Answer questions about how incidents occurred, how they were resolved, and how patterns emerged. Use the Retrieval API for incident details.",
+      "tools": ["bedrock", "retrieval_api"],
+      "output_schema": {
+        "methods": "array",
+        "process": "string",
+        "insights": "string"
+      },
+      "is_builtin": true
+    },
+    {
+      "agent_name": "Who Agent",
+      "agent_type": "query",
+      "interrogative": "who",
+      "system_prompt": "Analyze entities and actors involved in incidents. Answer questions about who reported incidents, who was affected, and entity patterns. Use the Retrieval API to get entity information.",
+      "tools": ["bedrock", "retrieval_api", "aggregation_api"],
+      "output_schema": {
+        "entities": "array",
+        "reporters": "string",
+        "affected": "string"
+      },
+      "is_builtin": true
+    }
+  ]
+}

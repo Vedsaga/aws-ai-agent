@@ -1,0 +1,335 @@
+{
+  "Comment": "Multi-Agent Orchestration State Machine",
+  "StartAt": "LoadPlaybook",
+  "States": {
+    "LoadPlaybook": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${LoadPlaybookFunctionArn}",
+        "Payload": {
+          "job_id.$": "$.job_id",
+          "tenant_id.$": "$.tenant_id",
+          "domain_id.$": "$.domain_id",
+          "playbook_type.$": "$.playbook_type"
+        }
+      },
+      "ResultPath": "$.playbook_result",
+      "ResultSelector": {
+        "playbook_id.$": "$.Payload.playbook_id",
+        "agent_ids.$": "$.Payload.agent_ids",
+        "status.$": "$.Payload.status"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleError"
+        }
+      ],
+      "Next": "CheckPlaybookStatus"
+    },
+    "CheckPlaybookStatus": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.playbook_result.status",
+          "StringEquals": "error",
+          "Next": "HandleError"
+        }
+      ],
+      "Default": "LoadDependencyGraph"
+    },
+    "LoadDependencyGraph": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${LoadDependencyGraphFunctionArn}",
+        "Payload": {
+          "job_id.$": "$.job_id",
+          "tenant_id.$": "$.tenant_id",
+          "playbook_id.$": "$.playbook_result.playbook_id",
+          "agent_ids.$": "$.playbook_result.agent_ids"
+        }
+      },
+      "ResultPath": "$.graph_result",
+      "ResultSelector": {
+        "graph_id.$": "$.Payload.graph_id",
+        "edges.$": "$.Payload.edges",
+        "status.$": "$.Payload.status"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleError"
+        }
+      ],
+      "Next": "BuildExecutionPlan"
+    },
+    "BuildExecutionPlan": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${BuildExecutionPlanFunctionArn}",
+        "Payload": {
+          "job_id.$": "$.job_id",
+          "tenant_id.$": "$.tenant_id",
+          "agent_ids.$": "$.playbook_result.agent_ids",
+          "edges.$": "$.graph_result.edges"
+        }
+      },
+      "ResultPath": "$.plan_result",
+      "ResultSelector": {
+        "execution_plan.$": "$.Payload.execution_plan",
+        "level_count.$": "$.Payload.level_count",
+        "status.$": "$.Payload.status"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleError"
+        }
+      ],
+      "Next": "CheckExecutionPlan"
+    },
+    "CheckExecutionPlan": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.plan_result.status",
+          "StringEquals": "error",
+          "Next": "HandleError"
+        }
+      ],
+      "Default": "ExecuteAgents"
+    },
+    "ExecuteAgents": {
+      "Type": "Map",
+      "ItemsPath": "$.plan_result.execution_plan",
+      "MaxConcurrency": 10,
+      "Parameters": {
+        "job_id.$": "$.job_id",
+        "tenant_id.$": "$.tenant_id",
+        "raw_text.$": "$.raw_text",
+        "agent_id.$": "$$.Map.Item.Value.agent_id",
+        "depends_on.$": "$$.Map.Item.Value.depends_on",
+        "level.$": "$$.Map.Item.Value.level"
+      },
+      "Iterator": {
+        "StartAt": "InvokeAgent",
+        "States": {
+          "InvokeAgent": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {
+              "FunctionName": "${AgentInvokerFunctionArn}",
+              "Payload": {
+                "job_id.$": "$.job_id",
+                "tenant_id.$": "$.tenant_id",
+                "agent_id.$": "$.agent_id",
+                "raw_text.$": "$.raw_text",
+                "parent_output.$": "$.parent_output"
+              }
+            },
+            "ResultSelector": {
+              "agent_name.$": "$.Payload.agent_name",
+              "agent_id.$": "$.Payload.agent_id",
+              "output.$": "$.Payload.output",
+              "status.$": "$.Payload.status",
+              "execution_time_ms.$": "$.Payload.execution_time_ms",
+              "error_message.$": "$.Payload.error_message"
+            },
+            "Retry": [
+              {
+                "ErrorEquals": ["States.TaskFailed"],
+                "IntervalSeconds": 5,
+                "MaxAttempts": 2,
+                "BackoffRate": 2.0
+              }
+            ],
+            "Catch": [
+              {
+                "ErrorEquals": ["States.ALL"],
+                "ResultPath": "$.agent_error",
+                "Next": "AgentFailed"
+              }
+            ],
+            "End": true
+          },
+          "AgentFailed": {
+            "Type": "Pass",
+            "Result": {
+              "agent_id.$": "$.agent_id",
+              "status": "error",
+              "error_message": "Agent invocation failed"
+            },
+            "End": true
+          }
+        }
+      },
+      "ResultPath": "$.agent_results",
+      "Next": "AggregateResults"
+    },
+    "AggregateResults": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${ResultAggregatorFunctionArn}",
+        "Payload": {
+          "job_id.$": "$.job_id",
+          "tenant_id.$": "$.tenant_id",
+          "agent_results.$": "$.agent_results",
+          "execution_plan.$": "$.plan_result.execution_plan"
+        }
+      },
+      "ResultPath": "$.aggregation_result",
+      "ResultSelector": {
+        "successful_results.$": "$.Payload.successful_results",
+        "failed_results.$": "$.Payload.failed_results",
+        "statistics.$": "$.Payload.statistics",
+        "overall_status.$": "$.Payload.overall_status"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Next": "ValidateOutputs"
+    },
+    "ValidateOutputs": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${ValidatorFunctionArn}",
+        "Payload": {
+          "job_id.$": "$.job_id",
+          "tenant_id.$": "$.tenant_id",
+          "successful_results.$": "$.aggregation_result.successful_results",
+          "failed_results.$": "$.aggregation_result.failed_results",
+          "statistics.$": "$.aggregation_result.statistics"
+        }
+      },
+      "ResultPath": "$.validation_result",
+      "ResultSelector": {
+        "validated_results.$": "$.Payload.validated_results",
+        "failed_results.$": "$.Payload.failed_results",
+        "validation_summary.$": "$.Payload.validation_summary",
+        "validation_status.$": "$.Payload.validation_status"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Next": "SynthesizeResults"
+    },
+    "SynthesizeResults": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${SynthesizerFunctionArn}",
+        "Payload": {
+          "job_id.$": "$.job_id",
+          "tenant_id.$": "$.tenant_id",
+          "domain_id.$": "$.domain_id",
+          "raw_text.$": "$.raw_text",
+          "validated_results.$": "$.validation_result.validated_results",
+          "failed_results.$": "$.validation_result.failed_results",
+          "statistics.$": "$.aggregation_result.statistics",
+          "validation_summary.$": "$.validation_result.validation_summary"
+        }
+      },
+      "ResultPath": "$.synthesis_result",
+      "ResultSelector": {
+        "storage_document.$": "$.Payload.storage_document",
+        "synthesis_status.$": "$.Payload.synthesis_status"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Next": "SaveResults"
+    },
+    "SaveResults": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${SaveResultsFunctionArn}",
+        "Payload": {
+          "job_id.$": "$.job_id",
+          "tenant_id.$": "$.tenant_id",
+          "domain_id.$": "$.domain_id",
+          "storage_document.$": "$.synthesis_result.storage_document",
+          "images.$": "$.images",
+          "created_by.$": "$.created_by"
+        }
+      },
+      "ResultPath": "$.save_result",
+      "ResultSelector": {
+        "incident_id.$": "$.Payload.incident_id",
+        "save_status.$": "$.Payload.save_status"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Next": "Success"
+    },
+    "Success": {
+      "Type": "Succeed"
+    },
+    "HandleError": {
+      "Type": "Pass",
+      "Result": {
+        "status": "error",
+        "message": "Orchestration failed"
+      },
+      "Next": "Fail"
+    },
+    "Fail": {
+      "Type": "Fail",
+      "Error": "OrchestrationError",
+      "Cause": "Agent orchestration pipeline failed"
+    }
+  }
+}

@@ -1,0 +1,104 @@
+{
+  "custom_agents": [
+    {
+      "agent_id": "severity-classifier",
+      "agent_name": "SeverityClassifier",
+      "agent_type": "custom",
+      "system_prompt": "You are a severity classification specialist. Analyze incident reports and classify their severity level based on urgency, impact, and risk. Consider factors like safety hazards, infrastructure damage, public health concerns, and time sensitivity. Provide a severity score from 1 (low) to 10 (critical) with clear reasoning.",
+      "tools": ["bedrock"],
+      "output_schema": {
+        "severity_score": {
+          "type": "number",
+          "required": true,
+          "description": "Severity score from 1 (low) to 10 (critical)"
+        },
+        "severity_level": {
+          "type": "string",
+          "required": true,
+          "description": "Severity classification: low, medium, high, critical"
+        },
+        "risk_factors": {
+          "type": "array",
+          "required": true,
+          "description": "List of identified risk factors"
+        },
+        "urgency": {
+          "type": "string",
+          "required": true,
+          "description": "Urgency level: immediate, urgent, moderate, low"
+        },
+        "reasoning": {
+          "type": "string",
+          "required": true,
+          "description": "Explanation for the severity classification"
+        }
+      },
+      "dependency_parent": "EntityAgent",
+      "description": "Classifies incident severity based on entity analysis and content understanding",
+      "domain": "civic-complaints",
+      "is_builtin": false,
+      "created_at": "2024-01-01T00:00:00Z"
+    }
+  ],
+  "ingestion_playbooks": [
+    {
+      "playbook_id": "civic-complaints-ingestion",
+      "domain_id": "civic-complaints",
+      "playbook_type": "ingestion",
+      "agent_ids": [
+        "GeoAgent",
+        "TemporalAgent",
+        "EntityAgent",
+        "SeverityClassifier"
+      ],
+      "description": "Ingestion pipeline for civic complaints with severity classification",
+      "created_at": "2024-01-01T00:00:00Z"
+    }
+  ],
+  "dependency_graphs": [
+    {
+      "graph_id": "civic-complaints-dependencies",
+      "playbook_id": "civic-complaints-ingestion",
+      "edges": [
+        {
+          "from": "EntityAgent",
+          "to": "SeverityClassifier",
+          "description": "Severity classification depends on entity analysis"
+        }
+      ],
+      "execution_levels": [
+        {
+          "level": 0,
+          "agents": ["GeoAgent", "TemporalAgent", "EntityAgent"]
+        },
+        {
+          "level": 1,
+          "agents": ["SeverityClassifier"]
+        }
+      ],
+      "created_at": "2024-01-01T00:00:00Z"
+    }
+  ],
+  "domains": [
+    {
+      "domain_id": "civic-complaints",
+      "domain_name": "Civic Complaints",
+      "description": "Citizen-reported infrastructure and service issues",
+      "ingestion_playbook_id": "civic-complaints-ingestion",
+      "query_playbook_id": "civic-complaints-query",
+      "created_at": "2024-01-01T00:00:00Z"
+    },
+    {
+      "domain_id": "disaster-response",
+      "domain_name": "Disaster Response",
+      "description": "Emergency and disaster incident reporting",
+      "created_at": "2024-01-01T00:00:00Z"
+    },
+    {
+      "domain_id": "agriculture",
+      "domain_name": "Agriculture",
+      "description": "Agricultural issues and crop monitoring",
+      "created_at": "2024-01-01T00:00:00Z"
+    }
+  ]
+}
