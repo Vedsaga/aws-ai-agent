@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ALWAYS write to workspace root, regardless of where command is run from
 OUTPUT_FILE="$SCRIPT_DIR/.kiro_command_output.txt"
-TEMP_FILE="$SCRIPT_DIR/.kiro_temp_output.txt"
+TEMP_FILE="$SCRIPT_DIR/.kiro_command_output.tmp"
 MAX_LINES=1000  # Limit output to prevent token waste
 
 # Validate command exists
@@ -25,10 +25,10 @@ fi
 "$@" > "$TEMP_FILE" 2>&1
 EXIT_CODE=$?
 
-# Now strip ANSI codes (comprehensive regex)
+# Now strip ANSI codes (comprehensive regex) and write to a clean temp file
 # Handles: colors, cursor movement, clear codes, OSC sequences
-sed -i.bak 's/\x1b\[[0-9;]*[a-zA-Z]//g; s/\x1b].*\x07//g; s/\x1b].*\x1b\\//g' "$TEMP_FILE"
-rm -f "$TEMP_FILE.bak"
+sed 's/\x1b\[[0-9;]*[a-zA-Z]//g; s/\x1b].*\x07//g; s/\x1b].*\x1b\\//g' "$TEMP_FILE" > "$TEMP_FILE.clean"
+mv "$TEMP_FILE.clean" "$TEMP_FILE"
 
 # Count total lines (handles files without trailing newline)
 TOTAL_LINES=$(grep -c ^ "$TEMP_FILE" 2>/dev/null || echo 0)
