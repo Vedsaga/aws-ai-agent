@@ -31,6 +31,7 @@ export default function DependencyGraphEditor() {
 
   useEffect(() => {
     loadAgents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadAgents = async () => {

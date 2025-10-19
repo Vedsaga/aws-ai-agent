@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { submitReport, getDomains } from '@/lib/api-client';
 import { subscribeToStatusUpdates, StatusUpdate } from '@/lib/appsync-client';
 import { getStoredUser } from '@/lib/auth';
@@ -196,9 +197,11 @@ export default function IngestionPanel() {
             <div className="mt-2 flex flex-wrap gap-2">
               {images.map((img, index) => (
                 <div key={index} className="relative">
-                  <img
+                  <Image
                     src={img}
                     alt={`Upload ${index + 1}`}
+                    width={64}
+                    height={64}
                     className="w-16 h-16 object-cover rounded"
                   />
                   <button

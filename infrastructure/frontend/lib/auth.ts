@@ -24,7 +24,6 @@ export async function login(email: string, password: string): Promise<{ success:
       // Get session and store tokens
       const session = await fetchAuthSession();
       const idToken = session.tokens?.idToken?.toString();
-      const refreshToken = session.tokens?.refreshToken?.toString();
       
       if (idToken) {
         // Store tokens in secure cookies
@@ -33,14 +32,6 @@ export async function login(email: string, password: string): Promise<{ success:
           sameSite: 'strict',
           expires: 1 / 24, // 1 hour
         });
-        
-        if (refreshToken) {
-          Cookies.set(REFRESH_TOKEN_COOKIE_NAME, refreshToken, {
-            secure: true,
-            sameSite: 'strict',
-            expires: 30, // 30 days
-          });
-        }
         
         // Get user info
         const user = await getCurrentUser();

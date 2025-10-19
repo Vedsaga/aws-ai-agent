@@ -27,22 +27,33 @@ export const subscribeToStatusUpdates = (
   onUpdate: (update: StatusUpdate) => void,
   onError?: (error: any) => void
 ) => {
-  const subscription = appsyncClient.graphql({
-    query: STATUS_UPDATE_SUBSCRIPTION,
-    variables: { userId },
-  }).subscribe({
-    next: ({ data }: any) => {
-      if (data?.onStatusUpdate) {
-        onUpdate(data.onStatusUpdate);
-      }
-    },
-    error: (error: any) => {
-      console.error('AppSync subscription error:', error);
-      if (onError) {
-        onError(error);
-      }
-    },
-  });
+  try {
+    const subscription = appsyncClient.graphql({
+      query: STATUS_UPDATE_SUBSCRIPTION,
+      variables: { userId },
+    }) as any;
 
-  return subscription;
+    if (subscription.subscribe) {
+      return subscription.subscribe({
+        next: ({ data }: any) => {
+          if (data?.onStatusUpdate) {
+            onUpdate(data.onStatusUpdate);
+          }
+        },
+        error: (error: any) => {
+          console.error('AppSync subscription error:', error);
+          if (onError) {
+            onError(error);
+          }
+        },
+      });
+    }
+  } catch (error) {
+    console.error('Failed to create subscription:', error);
+    if (onError) {
+      onError(error);
+    }
+  }
+
+  return { unsubscribe: () => {} };
 };

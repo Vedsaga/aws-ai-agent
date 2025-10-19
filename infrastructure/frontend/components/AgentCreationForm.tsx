@@ -348,7 +348,7 @@ export default function AgentCreationForm({ onSuccess }: { onSuccess?: () => voi
             ))}
           </select>
           <p className="mt-1 text-xs text-gray-500">
-            This agent will receive the parent agent's output as additional context
+            This agent will receive the parent agent&apos;s output as additional context
           </p>
         </div>
 
