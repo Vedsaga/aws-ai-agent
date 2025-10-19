@@ -77,11 +77,19 @@ export class DataStack extends cdk.Stack {
     this.database = cluster as any;
 
     // Create Lambda function to initialize database schema
+    // Create psycopg2 Lambda layer
+    const psycopg2Layer = new lambda.LayerVersion(this, 'Psycopg2Layer', {
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../layers/psycopg2')),
+      compatibleRuntimes: [lambda.Runtime.PYTHON_3_11],
+      description: 'psycopg2-binary for PostgreSQL connectivity',
+    });
+
     const dbInitFunction = new lambda.Function(this, 'DbInitFunction', {
       functionName: `${id}-DbInit`,
       runtime: lambda.Runtime.PYTHON_3_11,
       handler: 'db_init.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../../lambda/db-init')),
+      layers: [psycopg2Layer],
       timeout: cdk.Duration.minutes(5),
       memorySize: 512,
       vpc: this.vpc,

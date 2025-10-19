@@ -22,3 +22,8 @@ cdk.out
 # OS
 .DS_Store
 Thumbs.db
+
+.kiro_command_output.txt
+.kiro_command_output.tmp
+
+**/python/**

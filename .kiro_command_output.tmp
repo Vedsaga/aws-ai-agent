@@ -1,0 +1,4 @@
+[?25l[36m?[39m [1mWhich linter would you like to use?[22m [90m›[39m [90m- Use arrow-keys. Return to submit.[39m
+    ESLint[90m[39m
+    Biome[90m[39m
+[36m❯[39m   [36m[4mNone[39m[24m[90m - Skip linter configuration[39m

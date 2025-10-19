@@ -174,12 +174,18 @@ All infrastructure is deployed and operational!
 - ✅ JWT token generation working
 - ✅ API Gateway deployed and responding
 - ✅ S3 buckets created
-- ✅ DynamoDB tables created
+- ✅ DynamoDB tables created and seeded with configuration data
 - ✅ RDS Aurora Serverless database deployed
+- ✅ Lambda Layer for psycopg2 created and deployed
+- ✅ Configuration data seeded (Civic Complaints domain, agents, playbooks, query agents)
 
 ### Known Issues:
-- ⚠️ Database initialization Lambda missing psycopg2 dependency (needs Lambda layer)
-- ⚠️ API endpoints need proper route configuration
+- ⚠️ Database initialization Lambda times out (VPC networking issue - Lambda in public subnet can't reach RDS without NAT Gateway)
+- ⚠️ API routes need Lambda integrations configured
+- ⚠️ Frontend application not yet deployed
+
+### Workaround for Database:
+The database can be initialized manually using a bastion host or by temporarily adding a NAT Gateway. For the demo, the DynamoDB configuration data is sufficient to demonstrate the agent configuration system.
 
 ### Quick Test:
 ```bash
