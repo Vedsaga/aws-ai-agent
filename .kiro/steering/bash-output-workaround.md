@@ -4,15 +4,24 @@ inclusion: always
 
 # Bash Command Output Capture
 
+## Workspace Context
+
+- Project workspace root: `/home/vedsaga/hackathon/aws-ai-agent`
+- The `.kiro_exec.sh` wrapper script is located at workspace root
+- Other project scripts are in subdirectories (e.g., `infrastructure/scripts/`)
+- **CRITICAL**: Before suggesting commands, verify the script path is relative to workspace root
+
 ## Core Rule
 
-When using `executeBash` to capture command output, use the wrapper script:
+Always when executing any command, use the wrapper script to capture the output:
 
 ```bash
 ./.kiro_exec.sh <command> <args>
 ```
 
 Then immediately read `.kiro_command_output.txt` before running any other command.
+
+**Path Verification**: Always check that `.kiro_exec.sh` exists relative to your current execution context. If running from a subdirectory, adjust the path accordingly (e.g., `../.kiro_exec.sh` from `infrastructure/`).
 
 ## Key Behaviors
 

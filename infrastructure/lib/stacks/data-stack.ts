@@ -3,7 +3,7 @@ import * as rds from 'aws-cdk-lib/aws-rds';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
-import * as opensearch from 'aws-cdk-lib/aws-opensearchservice';
+// import * as opensearch from 'aws-cdk-lib/aws-opensearchservice'; // Removed for demo
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import { Construct } from 'constructs';
 import * as path from 'path';
@@ -16,59 +16,33 @@ export class DataStack extends cdk.Stack {
   public readonly userSessionsTable: dynamodb.Table;
   public readonly toolCatalogTable: dynamodb.Table;
   public readonly toolPermissionsTable: dynamodb.Table;
-  public readonly openSearchDomain: opensearch.Domain;
+  // OpenSearch removed for demo - not critical for agent configuration features
+  // public readonly openSearchDomain: opensearch.Domain;
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // Create VPC with NO NAT Gateway (cost optimization)
-    // Use VPC Endpoints instead for AWS service access
+    // Create simplified VPC for demo (no NAT Gateway, no VPC Endpoints)
+    // Using public subnets for RDS to avoid OpenSearch VPC issues
     this.vpc = new ec2.Vpc(this, 'Vpc', {
       vpcName: `${id}-Vpc`,
       maxAzs: 2,
-      natGateways: 0,  // COST OPTIMIZATION: No NAT Gateway ($23 saved)
+      natGateways: 0,  // COST OPTIMIZATION: No NAT Gateway
       subnetConfiguration: [
         {
           cidrMask: 24,
           name: 'Public',
           subnetType: ec2.SubnetType.PUBLIC,
         },
-        {
-          cidrMask: 24,
-          name: 'Private',
-          subnetType: ec2.SubnetType.PRIVATE_ISOLATED,  // No internet access
-        },
       ],
     });
 
-    // Add VPC Endpoints for AWS services (replaces NAT Gateway)
-    // Bedrock endpoint for AI calls
-    this.vpc.addInterfaceEndpoint('BedrockEndpoint', {
-      service: ec2.InterfaceVpcEndpointAwsService.BEDROCK_RUNTIME,
-      subnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
-    });
-
-    // Secrets Manager endpoint
-    this.vpc.addInterfaceEndpoint('SecretsManagerEndpoint', {
-      service: ec2.InterfaceVpcEndpointAwsService.SECRETS_MANAGER,
-      subnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
-    });
-
-    // DynamoDB gateway endpoint (free!)
-    this.vpc.addGatewayEndpoint('DynamoDbEndpoint', {
-      service: ec2.GatewayVpcEndpointAwsService.DYNAMODB,
-    });
-
-    // S3 gateway endpoint (free!)
-    this.vpc.addGatewayEndpoint('S3Endpoint', {
-      service: ec2.GatewayVpcEndpointAwsService.S3,
-    });
-
     // Create database credentials secret
+    const dbUsername = process.env.DB_USERNAME || 'dbadmin';  // Changed from 'admin' (reserved word)
     this.databaseSecret = new secretsmanager.Secret(this, 'DatabaseSecret', {
       secretName: `${id}-DatabaseCredentials`,
       generateSecretString: {
-        secretStringTemplate: JSON.stringify({ username: 'admin' }),
+        secretStringTemplate: JSON.stringify({ username: dbUsername }),
         generateStringKey: 'password',
         excludePunctuation: true,
         includeSpace: false,
@@ -86,7 +60,7 @@ export class DataStack extends cdk.Stack {
       defaultDatabaseName: 'multi_agent_orchestration',
       vpc: this.vpc,
       vpcSubnets: {
-        subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
+        subnetType: ec2.SubnetType.PUBLIC,  // Changed to PUBLIC for simplified demo
       },
       serverlessV2MinCapacity: 0.5,  // Minimum ACU (cost optimized)
       serverlessV2MaxCapacity: 2,    // Maximum ACU for demo
@@ -112,8 +86,9 @@ export class DataStack extends cdk.Stack {
       memorySize: 512,
       vpc: this.vpc,
       vpcSubnets: {
-        subnetType: ec2.SubnetType.PRIVATE_ISOLATED,  // Changed for VPC Endpoints
+        subnetType: ec2.SubnetType.PUBLIC,  // Changed to PUBLIC for simplified demo
       },
+      allowPublicSubnet: true,  // Required for Lambda in public subnet
       environment: {
         DB_SECRET_ARN: this.databaseSecret.secretArn,
         DB_HOST: (this.database as any).clusterEndpoint.hostname,
@@ -218,64 +193,9 @@ export class DataStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
-    // Create OpenSearch Domain for vector search - Cost optimized for demo
-    const stage = process.env.STAGE || 'dev';
-    const osInstanceType = process.env.OPENSEARCH_INSTANCE_TYPE || 't3.small.search';
-    const osInstanceCount = parseInt(process.env.OPENSEARCH_INSTANCE_COUNT || '1');
-    const osEbsVolumeSize = parseInt(process.env.OPENSEARCH_EBS_VOLUME_SIZE || '10');
-
-    this.openSearchDomain = new opensearch.Domain(this, 'OpenSearchDomain', {
-      domainName: `maos-${stage}-search`,
-      version: opensearch.EngineVersion.OPENSEARCH_2_11,
-      capacity: {
-        dataNodes: osInstanceCount,  // Single node for demo
-        dataNodeInstanceType: osInstanceType,  // Smallest instance
-      },
-      ebs: {
-        volumeSize: osEbsVolumeSize,  // Minimal storage
-        volumeType: ec2.EbsDeviceVolumeType.GP3,
-      },
-      zoneAwareness: {
-        enabled: false,  // Single-AZ for demo
-      },
-      vpc: this.vpc,
-      vpcSubnets: [{
-        subnetType: ec2.SubnetType.PRIVATE_ISOLATED,  // Changed from PRIVATE_WITH_EGRESS
-      }],
-      encryptionAtRest: {
-        enabled: true,
-      },
-      nodeToNodeEncryption: true,
-      enforceHttps: true,
-      logging: {
-        slowSearchLogEnabled: false,  // Disable logging to save costs
-        appLogEnabled: false,
-        slowIndexLogEnabled: false,
-      },
-      removalPolicy: cdk.RemovalPolicy.DESTROY,  // Allow deletion for demo
-    });
-
-    // Create Lambda function to initialize OpenSearch index
-    const osInitFunction = new lambda.Function(this, 'OpenSearchInitFunction', {
-      functionName: `${id}-OpenSearchInit`,
-      runtime: lambda.Runtime.PYTHON_3_11,
-      handler: 'opensearch_init.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../lambda/opensearch-init')),
-      timeout: cdk.Duration.minutes(5),
-      memorySize: 512,
-      vpc: this.vpc,
-      vpcSubnets: {
-        subnetType: ec2.SubnetType.PRIVATE_ISOLATED,  // Changed for VPC Endpoints
-      },
-      environment: {
-        OPENSEARCH_ENDPOINT: this.openSearchDomain.domainEndpoint,
-      },
-      description: 'Initializes OpenSearch index with knn_vector mapping',
-    });
-
-    // Grant OpenSearch access to init function
-    this.openSearchDomain.grantReadWrite(osInitFunction);
-    this.openSearchDomain.connections.allowFrom(osInitFunction, ec2.Port.tcp(443));
+    // OpenSearch removed for demo - not critical for agent configuration features
+    // Saves ~$36/month and avoids VPC complexity
+    // Vector search functionality can be added later if needed
 
     // Outputs
     new cdk.CfnOutput(this, 'DatabaseEndpoint', {
@@ -296,8 +216,9 @@ export class DataStack extends cdk.Stack {
       exportName: `${id}-ConfigurationsTableName`,
     });
 
+    // OpenSearch output removed - not deployed in demo version
     new cdk.CfnOutput(this, 'OpenSearchEndpoint', {
-      value: this.openSearchDomain.domainEndpoint,
+      value: 'not-deployed-in-demo',
       description: 'OpenSearch Domain Endpoint',
       exportName: `${id}-OpenSearchEndpoint`,
     });
@@ -315,10 +236,11 @@ export class DataStack extends cdk.Stack {
       description: 'Database Credentials Secret ARN',
     });
 
+    // OpenSearch SSM parameter removed - not deployed in demo version
     new cdk.aws_ssm.StringParameter(this, 'OpenSearchEndpointParameter', {
       parameterName: '/app/opensearch/endpoint',
-      stringValue: this.openSearchDomain.domainEndpoint,
-      description: 'OpenSearch Domain Endpoint',
+      stringValue: 'not-deployed-in-demo',
+      description: 'OpenSearch Domain Endpoint (not deployed in demo)',
     });
   }
 }
