@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createAgentConfig, getAgentConfigs, getToolRegistry } from '@/lib/api-client';
+import { showValidationErrorToast, showSuccessToast, showErrorToast } from '@/lib/toast-utils';
 
 interface Tool {
   name: string;
@@ -101,6 +102,12 @@ export default function AgentCreationForm({ onSuccess }: { onSuccess?: () => voi
     }
 
     setErrors(newErrors);
+    
+    // Show validation error toast
+    if (newErrors.length > 0) {
+      showValidationErrorToast(newErrors);
+    }
+    
     return newErrors.length === 0;
   };
 
@@ -157,6 +164,9 @@ export default function AgentCreationForm({ onSuccess }: { onSuccess?: () => voi
       setSuccess(true);
       setErrors([]);
       
+      // Show success toast
+      showSuccessToast('Agent created successfully', `Agent ID: ${response.data.config_id}`);
+      
       // Reset form
       setTimeout(() => {
         setAgentName('');
@@ -171,7 +181,9 @@ export default function AgentCreationForm({ onSuccess }: { onSuccess?: () => voi
         }
       }, 2000);
     } else {
-      setErrors([response.error || 'Failed to create agent']);
+      const errorMsg = response.error || 'Failed to create agent';
+      setErrors([errorMsg]);
+      // Error toast is already shown by API client
     }
     
     setLoading(false);

@@ -2,19 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { submitReport, getDomains } from '@/lib/api-client';
+import { submitReport } from '@/lib/api-client';
 import { subscribeToStatusUpdates, StatusUpdate } from '@/lib/appsync-client';
 import { getStoredUser } from '@/lib/auth';
-
-interface Domain {
-  id: string;
-  name: string;
-  description: string;
-}
+import { showValidationErrorToast, showSuccessToast, showErrorToast } from '@/lib/toast-utils';
+import { useAppContext } from '@/contexts/AppContext';
+import DomainSelector from './DomainSelector';
 
 export default function IngestionPanel() {
-  const [domains, setDomains] = useState<Domain[]>([]);
-  const [selectedDomain, setSelectedDomain] = useState('');
+  const { selectedDomain, setSelectedDomain, addChatMessage } = useAppContext();
   const [reportText, setReportText] = useState('');
   const [images, setImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -23,12 +19,7 @@ export default function IngestionPanel() {
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    // Load available domains
-    loadDomains();
-  }, []);
-
-  useEffect(() => {
-    if (!jobId) return;
+    if (!jobId || !selectedDomain) return;
 
     const user = getStoredUser();
     if (!user) return;
@@ -41,33 +32,39 @@ export default function IngestionPanel() {
           const message = `${update.agentName}: ${update.message}`;
           setStatusMessages((prev) => [...prev, message]);
           
+          // Add to chat history
+          addChatMessage(selectedDomain, {
+            id: `${Date.now()}-${Math.random()}`,
+            type: 'agent',
+            content: message,
+            timestamp: new Date().toISOString(),
+            metadata: {
+              jobId: update.jobId,
+              agentName: update.agentName,
+              status: update.status,
+            },
+          });
+          
           if (update.status === 'complete') {
             setSuccess(true);
             setLoading(false);
+            showSuccessToast('Processing complete', 'Your report has been processed successfully');
           } else if (update.status === 'error') {
             setLoading(false);
+            showErrorToast(`${update.agentName} failed`, update.message);
           }
         }
       },
       (error) => {
         console.error('Status subscription error:', error);
+        showErrorToast('Connection error', 'Lost connection to status updates');
       }
     );
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [jobId]);
-
-  const loadDomains = async () => {
-    const response = await getDomains();
-    if (response.data?.domains) {
-      setDomains(response.data.domains);
-      if (response.data.domains.length > 0) {
-        setSelectedDomain(response.data.domains[0].id);
-      }
-    }
-  };
+  }, [jobId, selectedDomain, addChatMessage]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -77,11 +74,11 @@ export default function IngestionPanel() {
     const maxSize = 5 * 1024 * 1024; // 5MB
 
     const newImages: string[] = [];
-    let errorMessage = '';
+    const errors: string[] = [];
 
     Array.from(files).slice(0, maxImages - images.length).forEach((file) => {
       if (file.size > maxSize) {
-        errorMessage = `Image ${file.name} exceeds 5MB limit`;
+        errors.push(`Image ${file.name} exceeds 5MB limit`);
         return;
       }
 
@@ -97,8 +94,8 @@ export default function IngestionPanel() {
       reader.readAsDataURL(file);
     });
 
-    if (errorMessage) {
-      alert(errorMessage);
+    if (errors.length > 0) {
+      showValidationErrorToast(errors);
     }
   };
 
@@ -109,23 +106,44 @@ export default function IngestionPanel() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!selectedDomain || !reportText.trim()) {
-      alert('Please select a domain and enter report text');
+    // Validation
+    const errors: string[] = [];
+    if (!selectedDomain) {
+      errors.push('Please select a domain');
+    }
+    if (!reportText.trim()) {
+      errors.push('Report text is required');
+    }
+    
+    if (errors.length > 0) {
+      showValidationErrorToast(errors);
       return;
     }
+
+    // TypeScript guard - we know selectedDomain is not null here
+    if (!selectedDomain) return;
 
     setLoading(true);
     setStatusMessages([]);
     setSuccess(false);
     setJobId(null);
 
+    // Add user message to chat history
+    addChatMessage(selectedDomain, {
+      id: `${Date.now()}-${Math.random()}`,
+      type: 'user',
+      content: reportText,
+      timestamp: new Date().toISOString(),
+    });
+
     const response = await submitReport(selectedDomain, reportText, images);
     
     if (response.data?.job_id) {
       setJobId(response.data.job_id);
       setStatusMessages(['Report submitted. Processing...']);
+      showSuccessToast('Report submitted', 'Your report is being processed');
     } else {
-      alert(response.error || 'Failed to submit report');
+      // Error toast is already shown by API client
       setLoading(false);
     }
   };
@@ -140,33 +158,24 @@ export default function IngestionPanel() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-white p-4 overflow-hidden">
-      <h2 className="text-xl font-bold mb-4">Submit Report</h2>
+    <div className="h-full flex flex-col bg-card p-4 overflow-hidden">
+      <h2 className="text-xl font-bold mb-4 text-foreground">Submit Report</h2>
       
       <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden">
         {/* Domain Selection */}
         <div className="mb-4">
-          <label htmlFor="domain" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="domain" className="block text-sm font-medium text-foreground mb-1">
             Domain
           </label>
-          <select
-            id="domain"
-            value={selectedDomain}
-            onChange={(e) => setSelectedDomain(e.target.value)}
-            disabled={loading}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            {domains.map((domain) => (
-              <option key={domain.id} value={domain.id}>
-                {domain.name}
-              </option>
-            ))}
-          </select>
+          <DomainSelector
+            selectedDomain={selectedDomain}
+            onDomainChange={setSelectedDomain}
+          />
         </div>
 
         {/* Report Text */}
         <div className="mb-4 flex-1 flex flex-col min-h-0">
-          <label htmlFor="report" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="report" className="block text-sm font-medium text-foreground mb-1">
             Report Description
           </label>
           <textarea
@@ -175,13 +184,13 @@ export default function IngestionPanel() {
             onChange={(e) => setReportText(e.target.value)}
             disabled={loading}
             placeholder="Describe the incident or issue..."
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+            className="flex-1 px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring resize-none bg-background text-foreground"
           />
         </div>
 
         {/* Image Upload */}
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-foreground mb-1">
             Images (max 5, 5MB each)
           </label>
           <input
@@ -190,7 +199,7 @@ export default function IngestionPanel() {
             multiple
             onChange={handleImageUpload}
             disabled={loading || images.length >= 5}
-            className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+            className="w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
           />
           
           {images.length > 0 && (
@@ -220,9 +229,9 @@ export default function IngestionPanel() {
 
         {/* Status Messages */}
         {statusMessages.length > 0 && (
-          <div className="mb-4 p-3 bg-gray-50 rounded-md max-h-32 overflow-y-auto custom-scrollbar">
+          <div className="mb-4 p-3 bg-muted rounded-md max-h-32 overflow-y-auto custom-scrollbar">
             {statusMessages.map((msg, index) => (
-              <div key={index} className="text-sm text-gray-700 mb-1">
+              <div key={index} className="text-sm text-foreground mb-1">
                 {msg}
               </div>
             ))}
@@ -231,8 +240,8 @@ export default function IngestionPanel() {
 
         {/* Success Message */}
         {success && jobId && (
-          <div className="mb-4 p-3 bg-green-50 rounded-md">
-            <div className="text-sm text-green-800">
+          <div className="mb-4 p-3 bg-green-500/10 rounded-md">
+            <div className="text-sm text-green-500">
               ✓ Report submitted successfully! Job ID: {jobId}
             </div>
           </div>
@@ -243,7 +252,7 @@ export default function IngestionPanel() {
           <button
             type="submit"
             disabled={loading || !selectedDomain || !reportText.trim()}
-            className="flex-1 py-2 px-4 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 py-2 px-4 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Processing...' : 'Submit Report'}
           </button>
@@ -253,7 +262,7 @@ export default function IngestionPanel() {
               type="button"
               onClick={handleReset}
               disabled={loading}
-              className="py-2 px-4 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400"
+              className="py-2 px-4 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 focus:outline-none focus:ring-2 focus:ring-ring"
             >
               New Report
             </button>

@@ -42,28 +42,28 @@ export default function ConfigPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-lg text-foreground">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-100">
+    <div className="h-screen flex flex-col bg-background">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
+      <header className="bg-card shadow-sm border-b border-border">
         <div className="px-6 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">Agent Configuration</h1>
+          <h1 className="text-2xl font-bold text-foreground">Agent Configuration</h1>
           <div className="flex gap-4">
             <button
               onClick={() => router.push('/dashboard')}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-md hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             >
               Back to Dashboard
             </button>
             <button
               onClick={handleLogout}
-              className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+              className="px-4 py-2 text-sm font-medium text-destructive-foreground bg-destructive rounded-md hover:bg-destructive/90 focus:outline-none focus:ring-2 focus:ring-ring"
             >
               Logout
             </button>
@@ -72,15 +72,15 @@ export default function ConfigPage() {
       </header>
 
       {/* Tabs */}
-      <div className="bg-white border-b border-gray-200">
+      <div className="bg-card border-b border-border">
         <div className="px-6">
           <div className="flex gap-8">
             <button
               onClick={() => setActiveTab('create')}
               className={`py-4 text-sm font-medium border-b-2 focus:outline-none ${
                 activeTab === 'create'
-                  ? 'text-indigo-600 border-indigo-600'
-                  : 'text-gray-600 border-transparent hover:text-gray-900 hover:border-gray-300'
+                  ? 'text-primary border-primary'
+                  : 'text-muted-foreground border-transparent hover:text-foreground hover:border-border'
               }`}
             >
               Create Agent
@@ -89,8 +89,8 @@ export default function ConfigPage() {
               onClick={() => setActiveTab('graph')}
               className={`py-4 text-sm font-medium border-b-2 focus:outline-none ${
                 activeTab === 'graph'
-                  ? 'text-indigo-600 border-indigo-600'
-                  : 'text-gray-600 border-transparent hover:text-gray-900 hover:border-gray-300'
+                  ? 'text-primary border-primary'
+                  : 'text-muted-foreground border-transparent hover:text-foreground hover:border-border'
               }`}
             >
               Dependency Graph
@@ -104,7 +104,7 @@ export default function ConfigPage() {
         {activeTab === 'create' ? (
           <AgentCreationForm onSuccess={handleAgentCreated} />
         ) : (
-          <div className="h-full bg-white rounded-lg shadow-md">
+          <div className="h-full bg-card rounded-lg shadow-md border border-border">
             <DependencyGraphEditor />
           </div>
         )}

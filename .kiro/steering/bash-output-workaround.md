@@ -2,7 +2,8 @@
 inclusion: always
 ---
 
-# Bash Command Output Capture
+## Issue
+Kiro is broken, when you execute the command in the terminal it does not seems to pass the command output to agent but instead getting surpressed. This is known bug still this is not fixed the workaround is to add the bash script as prefix as explianed below.
 
 ## Workspace Context
 

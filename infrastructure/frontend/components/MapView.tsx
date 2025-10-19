@@ -4,18 +4,14 @@ import { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { fetchIncidents } from '@/lib/api-client';
-
-interface Incident {
-  id: string;
-  location: {
-    latitude: number;
-    longitude: number;
-  };
-  structured_data: any;
-  raw_text: string;
-  created_at: string;
-  images?: string[];
-}
+import { 
+  createCustomMarker, 
+  getIncidentCoordinates, 
+  getGeometryType,
+  type Incident 
+} from '@/lib/map-utils';
+import { getCategoryColors } from '@/lib/category-config';
+import { createDetailedPopup } from '@/lib/popup-utils';
 
 export default function MapView() {
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -37,7 +33,7 @@ export default function MapView() {
     // Initialize map
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
+      style: 'mapbox://styles/mapbox/dark-v11',
       center: [-98.5795, 39.8283], // Center of US
       zoom: 4,
     });
@@ -48,8 +44,9 @@ export default function MapView() {
     // Add fullscreen control
     map.current.addControl(new mapboxgl.FullscreenControl(), 'top-right');
 
-    // Load initial incidents
-    loadIncidents();
+    // Don't load incidents automatically on mount
+    // User can click "Refresh Map" button to load incidents
+    // This prevents network errors on initial page load
 
     return () => {
       map.current?.remove();
@@ -59,105 +56,213 @@ export default function MapView() {
   useEffect(() => {
     if (!map.current || incidents.length === 0) return;
 
-    // Clear existing markers
+    // Clear existing markers and layers
     markers.current.forEach((marker) => marker.remove());
     markers.current = [];
 
-    // Add markers for each incident
+    // Remove existing layers and sources
     incidents.forEach((incident) => {
-      if (!incident.location?.latitude || !incident.location?.longitude) return;
+      const lineLayerId = `line-${incident.id}`;
+      const polygonLayerId = `polygon-${incident.id}`;
+      const polygonBorderId = `polygon-border-${incident.id}`;
+      
+      if (map.current?.getLayer(lineLayerId)) {
+        map.current.removeLayer(lineLayerId);
+      }
+      if (map.current?.getLayer(polygonLayerId)) {
+        map.current.removeLayer(polygonLayerId);
+      }
+      if (map.current?.getLayer(polygonBorderId)) {
+        map.current.removeLayer(polygonBorderId);
+      }
+      if (map.current?.getSource(lineLayerId)) {
+        map.current.removeSource(lineLayerId);
+      }
+      if (map.current?.getSource(polygonLayerId)) {
+        map.current.removeSource(polygonLayerId);
+      }
+    });
 
-      const el = document.createElement('div');
-      el.className = 'custom-marker';
-      el.style.width = '30px';
-      el.style.height = '30px';
-      el.style.borderRadius = '50%';
-      el.style.backgroundColor = '#4F46E5';
-      el.style.border = '2px solid white';
-      el.style.cursor = 'pointer';
-      el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
+    // Add markers/geometries for each incident
+    incidents.forEach((incident) => {
+      const geometryType = getGeometryType(incident);
+      const popup = createDetailedPopup(incident);
 
-      const popup = createPopup(incident);
+      if (geometryType === 'Point') {
+        // Use custom marker for point geometry
+        const coords = getIncidentCoordinates(incident);
+        if (!coords) return;
 
-      const marker = new mapboxgl.Marker(el)
-        .setLngLat([incident.location.longitude, incident.location.latitude])
-        .setPopup(popup)
-        .addTo(map.current!);
+        const markerElement = createCustomMarker(incident);
+        const marker = new mapboxgl.Marker(markerElement)
+          .setLngLat(coords)
+          .setPopup(popup)
+          .addTo(map.current!);
 
-      markers.current.push(marker);
+        markers.current.push(marker);
+      } else if (geometryType === 'LineString') {
+        // Render LineString
+        renderLineString(incident);
+      } else if (geometryType === 'Polygon') {
+        // Render Polygon
+        renderPolygon(incident);
+      }
     });
 
     // Fit bounds to show all markers
     if (incidents.length > 0) {
       const bounds = new mapboxgl.LngLatBounds();
       incidents.forEach((incident) => {
-        if (incident.location?.latitude && incident.location?.longitude) {
-          bounds.extend([incident.location.longitude, incident.location.latitude]);
+        const coords = getIncidentCoordinates(incident);
+        if (coords) {
+          bounds.extend(coords);
         }
       });
-      map.current.fitBounds(bounds, { padding: 50, maxZoom: 15 });
+      
+      if (!bounds.isEmpty()) {
+        map.current.fitBounds(bounds, { padding: 50, maxZoom: 15 });
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [incidents]);
 
-  const createPopup = (incident: Incident): mapboxgl.Popup => {
-    const popupContent = document.createElement('div');
-    popupContent.className = 'p-2 max-w-xs';
+  const renderLineString = (incident: Incident) => {
+    if (!map.current) return;
 
-    // Title
-    const title = document.createElement('h3');
-    title.className = 'font-bold text-sm mb-2';
-    title.textContent = incident.structured_data?.category || 'Incident';
-    popupContent.appendChild(title);
+    const coordinates = incident.structured_data?.geo_agent?.coordinates || incident.coordinates;
+    if (!coordinates || !Array.isArray(coordinates)) return;
 
-    // Description
-    const description = document.createElement('p');
-    description.className = 'text-xs text-gray-700 mb-2';
-    description.textContent = incident.raw_text.substring(0, 100) + (incident.raw_text.length > 100 ? '...' : '');
-    popupContent.appendChild(description);
+    const category = incident.structured_data?.entity_agent?.category || 'default';
+    const colors = getCategoryColors(category);
+    const sourceId = `line-${incident.id}`;
+    const layerId = `line-${incident.id}`;
 
-    // Structured data
-    if (incident.structured_data) {
-      const dataDiv = document.createElement('div');
-      dataDiv.className = 'text-xs text-gray-600 mb-2';
-      
-      Object.entries(incident.structured_data).slice(0, 3).forEach(([key, value]) => {
-        const item = document.createElement('div');
-        item.textContent = `${key}: ${value}`;
-        dataDiv.appendChild(item);
-      });
-      
-      popupContent.appendChild(dataDiv);
-    }
+    // Add source
+    map.current.addSource(sourceId, {
+      type: 'geojson',
+      data: {
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'LineString',
+          coordinates: coordinates
+        }
+      }
+    });
 
-    // Images
-    if (incident.images && incident.images.length > 0) {
-      const imagesDiv = document.createElement('div');
-      imagesDiv.className = 'flex gap-1 mb-2';
-      
-      incident.images.slice(0, 3).forEach((imageUrl) => {
-        const img = document.createElement('img');
-        img.src = imageUrl;
-        img.className = 'w-16 h-16 object-cover rounded cursor-pointer';
-        img.onclick = () => window.open(imageUrl, '_blank');
-        imagesDiv.appendChild(img);
-      });
-      
-      popupContent.appendChild(imagesDiv);
-    }
+    // Add layer
+    map.current.addLayer({
+      id: layerId,
+      type: 'line',
+      source: sourceId,
+      paint: {
+        'line-color': colors.bg,
+        'line-width': 3,
+        'line-opacity': 0.8
+      }
+    });
 
-    // Timestamp
-    const timestamp = document.createElement('div');
-    timestamp.className = 'text-xs text-gray-500';
-    timestamp.textContent = new Date(incident.created_at).toLocaleString();
-    popupContent.appendChild(timestamp);
+    // Add click handler
+    map.current.on('click', layerId, (e) => {
+      createDetailedPopup(incident)
+        .setLngLat(e.lngLat)
+        .addTo(map.current!);
+    });
 
-    return new mapboxgl.Popup({ offset: 25 }).setDOMContent(popupContent);
+    // Add hover effects
+    map.current.on('mouseenter', layerId, () => {
+      if (map.current) {
+        map.current.getCanvas().style.cursor = 'pointer';
+      }
+    });
+
+    map.current.on('mouseleave', layerId, () => {
+      if (map.current) {
+        map.current.getCanvas().style.cursor = '';
+      }
+    });
+  };
+
+  const renderPolygon = (incident: Incident) => {
+    if (!map.current) return;
+
+    const coordinates = incident.structured_data?.geo_agent?.coordinates || incident.coordinates;
+    if (!coordinates || !Array.isArray(coordinates)) return;
+
+    const category = incident.structured_data?.entity_agent?.category || 'default';
+    const colors = getCategoryColors(category);
+    const sourceId = `polygon-${incident.id}`;
+    const fillLayerId = `polygon-${incident.id}`;
+    const borderLayerId = `polygon-border-${incident.id}`;
+
+    // Add source
+    map.current.addSource(sourceId, {
+      type: 'geojson',
+      data: {
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'Polygon',
+          coordinates: coordinates
+        }
+      }
+    });
+
+    // Add fill layer
+    map.current.addLayer({
+      id: fillLayerId,
+      type: 'fill',
+      source: sourceId,
+      paint: {
+        'fill-color': colors.bg,
+        'fill-opacity': 0.3
+      }
+    });
+
+    // Add border layer
+    map.current.addLayer({
+      id: borderLayerId,
+      type: 'line',
+      source: sourceId,
+      paint: {
+        'line-color': colors.border,
+        'line-width': 2,
+        'line-opacity': 0.8
+      }
+    });
+
+    // Add click handler
+    map.current.on('click', fillLayerId, (e) => {
+      createDetailedPopup(incident)
+        .setLngLat(e.lngLat)
+        .addTo(map.current!);
+    });
+
+    // Add hover effects
+    map.current.on('mouseenter', fillLayerId, () => {
+      if (map.current) {
+        map.current.getCanvas().style.cursor = 'pointer';
+      }
+    });
+
+    map.current.on('mouseleave', fillLayerId, () => {
+      if (map.current) {
+        map.current.getCanvas().style.cursor = '';
+      }
+    });
   };
 
   const loadIncidents = async () => {
-    const response = await fetchIncidents({});
-    if (response.data?.data) {
-      setIncidents(response.data.data);
+    try {
+      const response = await fetchIncidents({});
+      if (response.data?.data) {
+        setIncidents(response.data.data);
+      } else if (response.error && response.status !== 401 && response.status !== 403) {
+        // Only show error for non-auth errors
+        console.error('Failed to load incidents:', response.error);
+      }
+    } catch (error) {
+      console.error('Error loading incidents:', error);
     }
   };
 
@@ -172,13 +277,13 @@ export default function MapView() {
       {/* Refresh button */}
       <button
         onClick={handleRefresh}
-        className="absolute top-4 left-4 bg-white px-4 py-2 rounded-md shadow-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium"
+        className="absolute top-4 left-4 bg-card text-card-foreground px-4 py-2 rounded-md shadow-md hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm font-medium border border-border"
       >
         Refresh Map
       </button>
 
       {/* Incident count */}
-      <div className="absolute bottom-4 left-4 bg-white px-4 py-2 rounded-md shadow-md text-sm">
+      <div className="absolute bottom-4 left-4 bg-card text-card-foreground px-4 py-2 rounded-md shadow-md text-sm border border-border">
         <span className="font-medium">{incidents.length}</span> incidents
       </div>
     </div>

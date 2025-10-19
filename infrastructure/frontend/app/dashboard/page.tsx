@@ -7,6 +7,8 @@ import { checkAuthStatus, logout, getStoredUser } from '@/lib/auth';
 import { configureAmplify } from '@/lib/amplify-config';
 import IngestionPanel from '@/components/IngestionPanel';
 import QueryPanel from '@/components/QueryPanel';
+import ChatHistory from '@/components/ChatHistory';
+import ViewModeSwitcher from '@/components/ViewModeSwitcher';
 
 // Dynamic import for MapView to avoid SSR issues with Mapbox
 const MapView = dynamic(() => import('@/components/MapView'), {
@@ -44,8 +46,8 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-lg text-foreground">Loading...</div>
       </div>
     );
   }
@@ -53,28 +55,29 @@ export default function DashboardPage() {
   const user = getStoredUser();
 
   return (
-    <div className="h-screen flex flex-col bg-gray-100">
+    <div className="h-screen flex flex-col bg-background">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
+      <header className="bg-card shadow-sm border-b border-border">
         <div className="px-6 py-4 flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Multi-Agent Orchestration System</h1>
+            <h1 className="text-2xl font-bold text-foreground">Multi-Agent Orchestration System</h1>
             {user && (
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-muted-foreground">
                 {user.email} | Tenant: {user.tenantId || 'N/A'}
               </p>
             )}
           </div>
-          <div className="flex gap-4">
+          <div className="flex items-center gap-4">
+            <ViewModeSwitcher className="w-64" />
             <button
               onClick={() => router.push('/config')}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-md hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             >
               Configure Agents
             </button>
             <button
               onClick={handleLogout}
-              className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+              className="px-4 py-2 text-sm font-medium text-destructive-foreground bg-destructive rounded-md hover:bg-destructive/90 focus:outline-none focus:ring-2 focus:ring-ring"
             >
               Logout
             </button>
@@ -90,15 +93,15 @@ export default function DashboardPage() {
         </div>
 
         {/* Chat Interface (20% width) */}
-        <div className="w-1/5 h-full flex flex-col bg-white border-l border-gray-200">
+        <div className="w-1/5 h-full flex flex-col bg-card border-l border-border">
           {/* Tabs */}
-          <div className="flex border-b border-gray-200">
+          <div className="flex border-b border-border">
             <button
               onClick={() => setActiveTab('ingest')}
               className={`flex-1 px-4 py-3 text-sm font-medium focus:outline-none ${
                 activeTab === 'ingest'
-                  ? 'text-indigo-600 border-b-2 border-indigo-600'
-                  : 'text-gray-600 hover:text-gray-900'
+                  ? 'text-primary border-b-2 border-primary'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               Submit Report
@@ -107,21 +110,26 @@ export default function DashboardPage() {
               onClick={() => setActiveTab('query')}
               className={`flex-1 px-4 py-3 text-sm font-medium focus:outline-none ${
                 activeTab === 'query'
-                  ? 'text-indigo-600 border-b-2 border-indigo-600'
-                  : 'text-gray-600 hover:text-gray-900'
+                  ? 'text-primary border-b-2 border-primary'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               Ask Question
             </button>
           </div>
 
-          {/* Panel Content */}
-          <div className="flex-1 overflow-hidden">
-            {activeTab === 'ingest' ? (
-              <IngestionPanel />
-            ) : (
-              <QueryPanel onVisualizationUpdate={handleVisualizationUpdate} />
-            )}
+          {/* Panel Content - Split into input (60%) and chat history (40%) */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="h-3/5 overflow-hidden border-b border-border">
+              {activeTab === 'ingest' ? (
+                <IngestionPanel />
+              ) : (
+                <QueryPanel onVisualizationUpdate={handleVisualizationUpdate} />
+              )}
+            </div>
+            <div className="h-2/5 overflow-hidden">
+              <ChatHistory />
+            </div>
           </div>
         </div>
       </div>

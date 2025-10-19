@@ -21,8 +21,8 @@ export default function HomePage() {
   }, [router]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-lg">Loading...</div>
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="text-lg text-foreground">Loading...</div>
     </div>
   );
 }
