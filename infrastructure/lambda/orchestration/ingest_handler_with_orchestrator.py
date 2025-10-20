@@ -9,6 +9,22 @@ import boto3
 from datetime import datetime
 import uuid
 import traceback
+import sys
+
+# Add realtime module to path (in Lambda, realtime/ is at same level)
+realtime_path = os.path.join(os.path.dirname(__file__), "realtime")
+if os.path.exists(realtime_path):
+    sys.path.insert(0, os.path.dirname(__file__))
+
+try:
+    from realtime.status_utils import publish_orchestrator_status
+    print("Status utils loaded successfully")
+except ImportError as e:
+    print(f"Warning: status_utils not available: {e}")
+
+    def publish_orchestrator_status(*args, **kwargs):
+        return False
+
 
 # Initialize AWS clients
 dynamodb = boto3.resource("dynamodb")
@@ -128,6 +144,15 @@ def handler(event, context):
             except Exception as e:
                 print(f"Error storing to DynamoDB: {e}")
 
+        # Publish initial status
+        publish_orchestrator_status(
+            job_id=job_id,
+            user_id=user_id,
+            tenant_id=tenant_id,
+            status="accepted",
+            message="Report received and queued for processing",
+        )
+
         # Trigger orchestrator
         orchestration_payload = {
             "job_id": job_id,
@@ -141,6 +166,15 @@ def handler(event, context):
         }
 
         trigger_orchestrator(orchestration_payload)
+
+        # Publish orchestration started status
+        publish_orchestrator_status(
+            job_id=job_id,
+            user_id=user_id,
+            tenant_id=tenant_id,
+            status="processing",
+            message="Agent orchestration started",
+        )
 
         # Return success response
         return success_response(
