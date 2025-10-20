@@ -1,0 +1,101 @@
+[12:26:19] ℹ ================================================================================
+[12:26:19] ℹ Multi-Agent Orchestration System - API Test Suite
+[12:26:19] ℹ ================================================================================
+[12:26:19] ℹ 
+[12:26:19] ℹ 
+[12:26:19] ▶ Running Authentication Tests...
+[12:26:19] ℹ --------------------------------------------------------------------------------
+[12:35:20] ✗ No Authorization Header: FAIL - Expected 401, got 0
+[12:35:21] ✗ Invalid JWT Token: FAIL - Expected 401, got 500
+[12:35:22] ✗ Expired JWT Token: FAIL - Expected 401, got 500
+[12:35:23] ✗ Valid JWT Token: FAIL - Expected 200/201/202, got 500
+[12:35:23] ⊘ Tenant ID Scoping: SKIP - Tenant isolation requires multi-tenant test setup
+[12:35:23] ℹ 
+[12:35:23] ▶ Running Config API - Agent CRUD Tests...
+[12:35:23] ℹ --------------------------------------------------------------------------------
+[12:35:24] ✗ Create Agent: FAIL - Expected 201, got 500
+[12:35:24] ℹ 
+[12:35:24] ▶ Running Config API - Domain CRUD Tests...
+[12:35:24] ℹ --------------------------------------------------------------------------------
+[12:35:25] ✗ Create Domain: FAIL - Expected 201, got 500
+[12:35:25] ℹ 
+[12:35:25] ▶ Running Config API - Dependency Graph Tests...
+[12:35:25] ℹ --------------------------------------------------------------------------------
+[12:35:26] ✗ List Dependency Graphs: FAIL - Expected 200, got 500
+[12:35:26] ℹ 
+[12:35:26] ▶ Running Data API Tests...
+[12:35:26] ℹ --------------------------------------------------------------------------------
+[12:35:27] ✗ Retrieve Incidents: FAIL - Expected 200, got 500
+[12:35:27] ✗ Filter by Date Range: FAIL - Expected 200, got 500
+[12:35:28] ✗ Filter by Location (bbox): FAIL - Expected 200, got 500
+[12:35:29] ✗ Filter by Category: FAIL - Expected 200, got 500
+[12:35:30] ✗ Pagination: FAIL - Expected 200, got 500
+[12:35:30] ✗ Spatial Queries: FAIL - Expected 200, got 500
+[12:35:31] ✗ Analytics Queries: FAIL - Expected 200, got 500
+[12:35:32] ✗ Aggregation Queries: FAIL - Expected 200, got 500
+[12:35:33] ✗ Vector Search: FAIL - Expected 200, got 500
+[12:35:33] ℹ 
+[12:35:33] ▶ Running Ingest API Tests...
+[12:35:33] ℹ --------------------------------------------------------------------------------
+[12:35:34] ✗ Submit Text-Only Report: FAIL - Expected 202, got 500
+[12:35:35] ✗ Submit Report with Images: FAIL - Expected 202, got 500
+[12:35:36] ✗ Invalid Domain ID: FAIL - Expected 404, got 500
+[12:35:36] ✗ Missing Required Fields: FAIL - Expected 400, got 500
+[12:35:38] ✗ Extremely Long Text: FAIL - Expected 202 or 400, got 500
+[12:35:39] ✗ Special Characters and Unicode: FAIL - Expected 202, got 500
+[12:35:39] ℹ 
+[12:35:39] ▶ Running Query API Tests...
+[12:35:39] ℹ --------------------------------------------------------------------------------
+[12:35:39] ✗ Ask Simple Question: FAIL - Expected 202, got 500
+[12:35:40] ✗ Ask Complex Question: FAIL - Expected 202, got 500
+[12:35:41] ✗ Invalid Domain ID: FAIL - Expected 404, got 500
+[12:35:42] ✗ Missing Required Fields: FAIL - Expected 400, got 500
+[12:35:53] ✗ Extremely Long Question: FAIL - Expected 202 or 400, got 500
+[12:35:53] ℹ 
+[12:35:53] ▶ Running Tool Registry API Tests...
+[12:35:53] ℹ --------------------------------------------------------------------------------
+[12:35:54] ✗ List All Tools: FAIL - Expected 200, got 500
+[12:35:54] ℹ 
+[12:35:54] ▶ Running Error Handling Tests...
+[12:35:54] ℹ --------------------------------------------------------------------------------
+[12:35:55] ✗ 400 Error Includes Validation Details: FAIL - Expected 400, got 500
+[12:35:56] ✓ 401 Error Includes Authentication Guidance: PASS (818ms)
+[12:35:57] ✗ 404 Error Includes Resource Identification: FAIL - Expected 404, got 500
+[12:35:59] ⊘ Error Response Format is Consistent: SKIP - Could not collect enough error responses
+[12:35:59] ⊘ Error Messages are User-Friendly: SKIP - No error responses to evaluate
+[12:35:59] ℹ 
+[12:35:59] ▶ Running Edge Case Tests...
+[12:35:59] ℹ --------------------------------------------------------------------------------
+[12:36:00] ✗ Missing Required Fields: FAIL - Expected 400, got 500
+[12:36:00] ✗ Invalid Data Types: FAIL - Expected 400, got 500
+[12:36:01] ✗ Out-of-Range Values: FAIL - Expected 400, got 500
+[12:36:03] ✗ Empty Strings and Arrays: FAIL - Expected 400, got 500
+[12:36:04] ✗ Null Values: FAIL - Expected 400, got 500
+[12:36:05] ✗ Special Characters and Unicode: FAIL - Expected 201 or 400, got 500
+[12:36:06] ✗ Malformed JSON: FAIL - Expected 400, got 500
+[12:36:07] ✗ Concurrent Requests: FAIL - Only 0/5 concurrent requests succeeded
+[12:36:07] ℹ 
+[12:36:07] ▶ Running Performance Tests...
+[12:36:07] ℹ --------------------------------------------------------------------------------
+[12:36:09] ⊘ Config API Response Time: SKIP - Could not measure response time
+[12:36:21] ⊘ Data API Response Time: SKIP - Could not measure response time
+[12:36:24] ⊘ Ingest API Response Time: SKIP - Could not measure response time
+[12:36:27] ⊘ Query API Response Time: SKIP - Could not measure response time
+[12:36:28] ✗ 10 Concurrent Requests: FAIL - Only 0/10 concurrent requests succeeded
+[12:36:31] ⊘ Pagination Performance: SKIP - Could not measure pagination performance
+[12:36:31] ℹ 
+[12:36:31] ℹ Cleaning up test resources...
+[12:36:31] ℹ 
+[12:36:31] ℹ ================================================================================
+[12:36:31] ℹ TEST EXECUTION SUMMARY
+[12:36:31] ℹ ================================================================================
+[12:36:31] ℹ 
+[12:36:31] ℹ Total Tests:    48
+[12:36:31] ℹ Passed:         1 (2.1%)
+[12:36:31] ✗ Failed:         39
+[12:36:31] ℹ Skipped:        8
+[12:36:31] ℹ Duration:       612.14 seconds
+[12:36:31] ℹ 
+[12:36:31] ✗ ✗ 39 test(s) failed
+[12:36:31] ℹ ================================================================================
+[12:36:31] ℹ Test report saved to TEST_REPORT.md
