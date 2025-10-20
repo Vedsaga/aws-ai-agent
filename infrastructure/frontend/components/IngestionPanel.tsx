@@ -3,20 +3,31 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { submitReport } from '@/lib/api-client';
-import { subscribeToStatusUpdates, StatusUpdate } from '@/lib/appsync-client';
+import { subscribeToJobStatus, StatusUpdate } from '@/lib/appsync-client';
 import { getStoredUser } from '@/lib/auth';
 import { showValidationErrorToast, showSuccessToast, showErrorToast } from '@/lib/toast-utils';
 import { useAppContext } from '@/contexts/AppContext';
 import DomainSelector from './DomainSelector';
+import ExecutionStatusPanel, { AgentStatus } from './ExecutionStatusPanel';
+import ClarificationDialog, { LowConfidenceField } from './ClarificationDialog';
+import { extractLowConfidenceFields, formatEnhancedText } from '@/lib/confidence-utils';
 
 export default function IngestionPanel() {
   const { selectedDomain, setSelectedDomain, addChatMessage } = useAppContext();
   const [reportText, setReportText] = useState('');
+  const [originalReportText, setOriginalReportText] = useState('');
   const [images, setImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusMessages, setStatusMessages] = useState<string[]>([]);
   const [jobId, setJobId] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [agentStatuses, setAgentStatuses] = useState<Record<string, AgentStatus>>({});
+  const [agentNames, setAgentNames] = useState<string[]>([]);
+  const [showStatusPanel, setShowStatusPanel] = useState(false);
+  const [showClarification, setShowClarification] = useState(false);
+  const [lowConfidenceFields, setLowConfidenceFields] = useState<LowConfidenceField[]>([]);
+  const [clarificationRound, setClarificationRound] = useState(0);
+  const [agentOutputs, setAgentOutputs] = useState<any[]>([]);
 
   useEffect(() => {
     if (!jobId || !selectedDomain) return;
@@ -24,47 +35,119 @@ export default function IngestionPanel() {
     const user = getStoredUser();
     if (!user) return;
 
-    // Subscribe to status updates
-    const subscription = subscribeToStatusUpdates(
+    // Show status panel when job starts
+    setShowStatusPanel(true);
+
+    // Subscribe to status updates for this specific job
+    const subscription = subscribeToJobStatus(
       user.userId,
+      jobId,
       (update: StatusUpdate) => {
-        if (update.jobId === jobId) {
-          const message = `${update.agentName}: ${update.message}`;
-          setStatusMessages((prev) => [...prev, message]);
-          
-          // Add to chat history
-          addChatMessage(selectedDomain, {
-            id: `${Date.now()}-${Math.random()}`,
-            type: 'agent',
-            content: message,
-            timestamp: new Date().toISOString(),
-            metadata: {
-              jobId: update.jobId,
-              agentName: update.agentName,
-              status: update.status,
-            },
-          });
-          
-          if (update.status === 'complete') {
-            setSuccess(true);
-            setLoading(false);
-            showSuccessToast('Processing complete', 'Your report has been processed successfully');
-          } else if (update.status === 'error') {
-            setLoading(false);
-            showErrorToast(`${update.agentName} failed`, update.message);
+        const message = `${update.agentName}: ${update.message}`;
+        setStatusMessages((prev) => [...prev, message]);
+        
+        // Update agent status
+        const newStatus: AgentStatus = {
+          agentName: update.agentName,
+          status: update.status as AgentStatus['status'],
+          message: update.message,
+          confidence: update.confidence,
+          timestamp: update.timestamp,
+        };
+        
+        setAgentStatuses((prev) => ({
+          ...prev,
+          [update.agentName]: newStatus,
+        }));
+        
+        // Add agent to list if not already present
+        setAgentNames((prev) => {
+          if (!prev.includes(update.agentName)) {
+            return [...prev, update.agentName];
           }
+          return prev;
+        });
+        
+        // Collect agent outputs for confidence checking
+        if (update.status === 'complete' && update.confidence !== undefined) {
+          setAgentOutputs((prev) => [
+            ...prev,
+            {
+              agent_name: update.agentName,
+              output: {
+                confidence: update.confidence,
+              },
+            },
+          ]);
+        }
+        
+        // Add to chat history
+        addChatMessage(selectedDomain, {
+          id: `${Date.now()}-${Math.random()}`,
+          type: 'agent',
+          content: message,
+          timestamp: new Date().toISOString(),
+          metadata: {
+            jobId: update.jobId,
+            agentName: update.agentName,
+            status: update.status,
+            confidence: update.confidence,
+          },
+        });
+        
+        if (update.status === 'complete') {
+          // Check if all agents are complete
+          const updatedStatuses = {
+            ...agentStatuses,
+            [update.agentName]: newStatus,
+          };
+          
+          const allComplete = Object.values(updatedStatuses).every(
+            (status) => status.status === 'complete' || status.status === 'error'
+          );
+          
+          if (allComplete) {
+            setLoading(false);
+            setShowStatusPanel(false);
+            
+            // Check for low confidence fields
+            const currentOutputs = [...agentOutputs];
+            if (update.confidence !== undefined) {
+              currentOutputs.push({
+                agent_name: update.agentName,
+                output: {
+                  confidence: update.confidence,
+                },
+              });
+            }
+            
+            const lowConfFields = extractLowConfidenceFields(currentOutputs, 0.9);
+            
+            // Only show clarification if we haven't exceeded max rounds
+            if (lowConfFields.length > 0 && clarificationRound < 3) {
+              setLowConfidenceFields(lowConfFields);
+              setShowClarification(true);
+            } else {
+              setSuccess(true);
+              showSuccessToast('Processing complete', 'Your report has been processed successfully');
+            }
+          }
+        } else if (update.status === 'error') {
+          setLoading(false);
+          showErrorToast(`${update.agentName} failed`, update.message);
         }
       },
       (error) => {
         console.error('Status subscription error:', error);
         showErrorToast('Connection error', 'Lost connection to status updates');
+        setShowStatusPanel(false);
       }
     );
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [jobId, selectedDomain, addChatMessage]);
+  }, [jobId, selectedDomain, addChatMessage, agentStatuses]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -123,10 +206,16 @@ export default function IngestionPanel() {
     // TypeScript guard - we know selectedDomain is not null here
     if (!selectedDomain) return;
 
+    // Store original text on first submission
+    if (!originalReportText) {
+      setOriginalReportText(reportText);
+    }
+
     setLoading(true);
     setStatusMessages([]);
     setSuccess(false);
     setJobId(null);
+    setAgentOutputs([]);
 
     // Add user message to chat history
     addChatMessage(selectedDomain, {
@@ -141,6 +230,8 @@ export default function IngestionPanel() {
     if (response.data?.job_id) {
       setJobId(response.data.job_id);
       setStatusMessages(['Report submitted. Processing...']);
+      setAgentStatuses({});
+      setAgentNames([]);
       showSuccessToast('Report submitted', 'Your report is being processed');
     } else {
       // Error toast is already shown by API client
@@ -148,13 +239,47 @@ export default function IngestionPanel() {
     }
   };
 
+  const handleClarificationSubmit = (clarifications: Record<string, string>) => {
+    // Append clarification to original text
+    const enhancedText = formatEnhancedText(originalReportText, clarifications);
+    
+    // Increment clarification round
+    setClarificationRound((prev) => prev + 1);
+    
+    // Update report text and re-submit
+    setReportText(enhancedText);
+    setShowClarification(false);
+    
+    // Re-submit with enhanced context
+    setTimeout(() => {
+      const form = document.querySelector('form');
+      if (form) {
+        form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+      }
+    }, 100);
+  };
+
+  const handleClarificationSkip = () => {
+    setShowClarification(false);
+    setSuccess(true);
+    showSuccessToast('Processing complete', 'Your report has been processed (with low confidence)');
+  };
+
   const handleReset = () => {
     setReportText('');
+    setOriginalReportText('');
     setImages([]);
     setStatusMessages([]);
     setJobId(null);
     setSuccess(false);
     setLoading(false);
+    setAgentStatuses({});
+    setAgentNames([]);
+    setShowStatusPanel(false);
+    setShowClarification(false);
+    setLowConfidenceFields([]);
+    setClarificationRound(0);
+    setAgentOutputs([]);
   };
 
   return (
@@ -227,8 +352,30 @@ export default function IngestionPanel() {
           )}
         </div>
 
-        {/* Status Messages */}
-        {statusMessages.length > 0 && (
+        {/* Clarification Dialog */}
+        {showClarification && jobId && (
+          <ClarificationDialog
+            isOpen={showClarification}
+            jobId={jobId}
+            lowConfidenceFields={lowConfidenceFields}
+            onSubmit={handleClarificationSubmit}
+            onSkip={handleClarificationSkip}
+          />
+        )}
+
+        {/* Execution Status Panel */}
+        {showStatusPanel && jobId && agentNames.length > 0 && (
+          <div className="mb-4">
+            <ExecutionStatusPanel
+              jobId={jobId}
+              agentStatuses={agentStatuses}
+              agentNames={agentNames}
+            />
+          </div>
+        )}
+
+        {/* Status Messages (fallback for simple text display) */}
+        {!showStatusPanel && statusMessages.length > 0 && (
           <div className="mb-4 p-3 bg-muted rounded-md max-h-32 overflow-y-auto custom-scrollbar">
             {statusMessages.map((msg, index) => (
               <div key={index} className="text-sm text-foreground mb-1">

@@ -8,6 +8,7 @@ import {
   createCustomMarker, 
   getIncidentCoordinates, 
   getGeometryType,
+  renderGeometry,
   type Incident 
 } from '@/lib/map-utils';
 import { getCategoryColors } from '@/lib/category-config';
@@ -157,7 +158,7 @@ export default function MapView() {
       source: sourceId,
       paint: {
         'line-color': colors.bg,
-        'line-width': 3,
+        'line-width': 4,
         'line-opacity': 0.8
       }
     });

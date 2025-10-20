@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { checkAuthStatus, logout, getStoredUser } from '@/lib/auth';
 import { configureAmplify } from '@/lib/amplify-config';
+import { useAppContext } from '@/contexts/AppContext';
 import IngestionPanel from '@/components/IngestionPanel';
 import QueryPanel from '@/components/QueryPanel';
 import ChatHistory from '@/components/ChatHistory';
@@ -20,6 +21,8 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<'ingest' | 'query'>('ingest');
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { setSelectedDomain } = useAppContext();
 
   useEffect(() => {
     configureAmplify();
@@ -32,6 +35,20 @@ export default function DashboardPage() {
       }
     });
   }, [router]);
+
+  // Handle query parameters for domain and panel selection
+  useEffect(() => {
+    const domainParam = searchParams.get('domain');
+    const panelParam = searchParams.get('panel');
+
+    if (domainParam) {
+      setSelectedDomain(domainParam);
+    }
+
+    if (panelParam === 'query' || panelParam === 'ingest') {
+      setActiveTab(panelParam);
+    }
+  }, [searchParams, setSelectedDomain]);
 
   const handleLogout = async () => {
     await logout();
@@ -69,6 +86,12 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center gap-4">
             <ViewModeSwitcher className="w-64" />
+            <button
+              onClick={() => router.push('/agents')}
+              className="px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-md hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              Manage Agents
+            </button>
             <button
               onClick={() => router.push('/config')}
               className="px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-md hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring"

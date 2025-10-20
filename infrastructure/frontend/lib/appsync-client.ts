@@ -20,13 +20,23 @@ export interface StatusUpdate {
   status: string;
   message: string;
   timestamp: string;
+  confidence?: number;
 }
 
+export interface SubscriptionHandle {
+  unsubscribe: () => void;
+}
+
+/**
+ * Subscribe to status updates for a specific user
+ * Filters updates by jobId if provided
+ */
 export const subscribeToStatusUpdates = (
   userId: string,
   onUpdate: (update: StatusUpdate) => void,
-  onError?: (error: any) => void
-) => {
+  onError?: (error: any) => void,
+  jobIdFilter?: string
+): SubscriptionHandle => {
   try {
     const subscription = appsyncClient.graphql({
       query: STATUS_UPDATE_SUBSCRIPTION,
@@ -37,7 +47,24 @@ export const subscribeToStatusUpdates = (
       return subscription.subscribe({
         next: ({ data }: any) => {
           if (data?.onStatusUpdate) {
-            onUpdate(data.onStatusUpdate);
+            const update = data.onStatusUpdate;
+            
+            // Filter by jobId if specified
+            if (jobIdFilter && update.jobId !== jobIdFilter) {
+              return;
+            }
+            
+            // Parse confidence from message if present
+            try {
+              const messageData = JSON.parse(update.message);
+              if (messageData.confidence !== undefined) {
+                update.confidence = messageData.confidence;
+              }
+            } catch (e) {
+              // Message is not JSON, ignore
+            }
+            
+            onUpdate(update);
           }
         },
         error: (error: any) => {
@@ -56,4 +83,17 @@ export const subscribeToStatusUpdates = (
   }
 
   return { unsubscribe: () => {} };
+};
+
+/**
+ * Subscribe to status updates for a specific job
+ * This is a convenience wrapper around subscribeToStatusUpdates
+ */
+export const subscribeToJobStatus = (
+  userId: string,
+  jobId: string,
+  onUpdate: (update: StatusUpdate) => void,
+  onError?: (error: any) => void
+): SubscriptionHandle => {
+  return subscribeToStatusUpdates(userId, onUpdate, onError, jobId);
 };

@@ -80,7 +80,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         elif http_method == 'GET' and query_parameters.get('type'):
             # List configurations by type
             config_type = query_parameters.get('type')
-            return list_configs(tenant_id, config_type)
+            return list_configs(tenant_id, user_id, config_type)
         
         elif http_method == 'PUT' and path_parameters:
             # Update configuration
@@ -118,7 +118,21 @@ def create_config(tenant_id: str, user_id: str, body: Dict[str, Any]) -> Dict[st
         elif config_type == 'dependency_graph':
             result = dependency_manager.create(tenant_id, user_id, config_data)
         elif config_type == 'domain_template':
-            result = template_manager.create(tenant_id, user_id, config_data)
+            # Check if simplified format (agent_ids) or full format
+            if 'ingest_agent_ids' in config_data and 'query_agent_ids' in config_data:
+                # Simplified format - create from agent IDs
+                result = template_manager.create_from_agent_ids(
+                    tenant_id=tenant_id,
+                    user_id=user_id,
+                    template_name=config_data.get('template_name', ''),
+                    domain_id=config_data.get('domain_id', ''),
+                    ingest_agent_ids=config_data['ingest_agent_ids'],
+                    query_agent_ids=config_data['query_agent_ids'],
+                    description=config_data.get('description', '')
+                )
+            else:
+                # Full format - use existing create method
+                result = template_manager.create(tenant_id, user_id, config_data)
         else:
             return error_response(400, f'Invalid config type: {config_type}')
         
@@ -155,17 +169,33 @@ def get_config(tenant_id: str, config_type: str, config_id: str) -> Dict[str, An
         return error_response(500, f"Failed to get configuration: {str(e)}")
 
 
-def list_configs(tenant_id: str, config_type: str) -> Dict[str, Any]:
+def list_configs(tenant_id: str, user_id: str, config_type: str) -> Dict[str, Any]:
     """List all configurations of a specific type"""
     try:
         if config_type == 'agent':
             results = agent_manager.list(tenant_id)
+            # Add metadata flags
+            for agent in results:
+                agent['is_builtin'] = agent.get('is_builtin', False)
+                agent['created_by_me'] = agent.get('created_by') == user_id
+                
         elif config_type == 'playbook':
             results = playbook_manager.list(tenant_id)
+            
         elif config_type == 'dependency_graph':
             results = dependency_manager.list(tenant_id)
+            
         elif config_type == 'domain_template':
             results = template_manager.list(tenant_id)
+            # Add metadata for domain templates
+            for domain in results:
+                domain['is_builtin'] = domain.get('is_builtin', False)
+                domain['created_by_me'] = domain.get('created_by') == user_id
+                # Count agents in this domain
+                domain['agent_count'] = len(domain.get('agent_configs', []))
+                # Get incident count from data layer (placeholder - would need actual query)
+                domain['incident_count'] = 0  # TODO: Query actual incident count from data API
+                
         else:
             return error_response(400, f'Invalid config type: {config_type}')
         

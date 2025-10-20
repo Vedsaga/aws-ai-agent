@@ -2,13 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import { submitQuery } from '@/lib/api-client';
-import { subscribeToStatusUpdates, StatusUpdate } from '@/lib/appsync-client';
+import { subscribeToJobStatus, StatusUpdate } from '@/lib/appsync-client';
 import { getStoredUser } from '@/lib/auth';
 import { showValidationErrorToast, showSuccessToast, showErrorToast } from '@/lib/toast-utils';
 import { useAppContext } from '@/contexts/AppContext';
 import DomainSelector from './DomainSelector';
 import { QueryClarificationPanel } from './QueryClarificationPanel';
 import { needsClarification, getClarificationQuestions } from '@/lib/query-utils';
+import ExecutionStatusPanel, { AgentStatus } from './ExecutionStatusPanel';
+import ClarificationDialog, { LowConfidenceField } from './ClarificationDialog';
+import { extractLowConfidenceFields, formatEnhancedText } from '@/lib/confidence-utils';
 
 interface QueryResponse {
   bulletPoints: string[];
@@ -19,12 +22,20 @@ interface QueryResponse {
 export default function QueryPanel({ onVisualizationUpdate }: { onVisualizationUpdate?: (viz: any) => void }) {
   const { selectedDomain, setSelectedDomain, addChatMessage } = useAppContext();
   const [question, setQuestion] = useState('');
+  const [originalQuestion, setOriginalQuestion] = useState('');
   const [loading, setLoading] = useState(false);
   const [statusMessages, setStatusMessages] = useState<string[]>([]);
   const [jobId, setJobId] = useState<string | null>(null);
   const [response, setResponse] = useState<QueryResponse | null>(null);
   const [showClarification, setShowClarification] = useState(false);
   const [clarificationQuestions, setClarificationQuestions] = useState<any[]>([]);
+  const [agentStatuses, setAgentStatuses] = useState<Record<string, AgentStatus>>({});
+  const [agentNames, setAgentNames] = useState<string[]>([]);
+  const [showStatusPanel, setShowStatusPanel] = useState(false);
+  const [showConfidenceClarification, setShowConfidenceClarification] = useState(false);
+  const [lowConfidenceFields, setLowConfidenceFields] = useState<LowConfidenceField[]>([]);
+  const [clarificationRound, setClarificationRound] = useState(0);
+  const [agentOutputs, setAgentOutputs] = useState<any[]>([]);
 
   useEffect(() => {
     if (!jobId || !selectedDomain) return;
@@ -32,57 +43,130 @@ export default function QueryPanel({ onVisualizationUpdate }: { onVisualizationU
     const user = getStoredUser();
     if (!user) return;
 
-    const subscription = subscribeToStatusUpdates(
+    // Show status panel when job starts
+    setShowStatusPanel(true);
+
+    const subscription = subscribeToJobStatus(
       user.userId,
+      jobId,
       (update: StatusUpdate) => {
-        if (update.jobId === jobId) {
-          const message = `${update.agentName}: ${update.message}`;
-          setStatusMessages((prev) => [...prev, message]);
-          
-          // Add to chat history
-          addChatMessage(selectedDomain, {
-            id: `${Date.now()}-${Math.random()}`,
-            type: 'agent',
-            content: message,
-            timestamp: new Date().toISOString(),
-            metadata: {
-              jobId: update.jobId,
-              agentName: update.agentName,
-              status: update.status,
-            },
-          });
-          
-          if (update.status === 'complete') {
-            // Parse response from message if available
-            try {
-              const data = JSON.parse(update.message);
-              if (data.bulletPoints && data.summary) {
-                setResponse(data);
-                if (data.visualization && onVisualizationUpdate) {
-                  onVisualizationUpdate(data.visualization);
-                }
-                showSuccessToast('Analysis complete', 'Your query has been analyzed');
-              }
-            } catch (e) {
-              // Message is not JSON, just a status update
-            }
-            setLoading(false);
-          } else if (update.status === 'error') {
-            setLoading(false);
-            showErrorToast(`${update.agentName} failed`, update.message);
+        const message = `${update.agentName}: ${update.message}`;
+        setStatusMessages((prev) => [...prev, message]);
+        
+        // Update agent status
+        const newStatus: AgentStatus = {
+          agentName: update.agentName,
+          status: update.status as AgentStatus['status'],
+          message: update.message,
+          confidence: update.confidence,
+          timestamp: update.timestamp,
+        };
+        
+        setAgentStatuses((prev) => ({
+          ...prev,
+          [update.agentName]: newStatus,
+        }));
+        
+        // Add agent to list if not already present
+        setAgentNames((prev) => {
+          if (!prev.includes(update.agentName)) {
+            return [...prev, update.agentName];
           }
+          return prev;
+        });
+        
+        // Collect agent outputs for confidence checking
+        if (update.status === 'complete' && update.confidence !== undefined) {
+          setAgentOutputs((prev) => [
+            ...prev,
+            {
+              agent_name: update.agentName,
+              output: {
+                confidence: update.confidence,
+              },
+            },
+          ]);
+        }
+        
+        // Add to chat history
+        addChatMessage(selectedDomain, {
+          id: `${Date.now()}-${Math.random()}`,
+          type: 'agent',
+          content: message,
+          timestamp: new Date().toISOString(),
+          metadata: {
+            jobId: update.jobId,
+            agentName: update.agentName,
+            status: update.status,
+            confidence: update.confidence,
+          },
+        });
+        
+        if (update.status === 'complete') {
+          // Parse response from message if available
+          try {
+            const data = JSON.parse(update.message);
+            if (data.bulletPoints && data.summary) {
+              setResponse(data);
+              if (data.visualization && onVisualizationUpdate) {
+                onVisualizationUpdate(data.visualization);
+              }
+            }
+          } catch (e) {
+            // Message is not JSON, just a status update
+          }
+          
+          // Check if all agents are complete
+          const updatedStatuses = {
+            ...agentStatuses,
+            [update.agentName]: newStatus,
+          };
+          
+          const allComplete = Object.values(updatedStatuses).every(
+            (status) => status.status === 'complete' || status.status === 'error'
+          );
+          
+          if (allComplete) {
+            setLoading(false);
+            setShowStatusPanel(false);
+            
+            // Check for low confidence fields
+            const currentOutputs = [...agentOutputs];
+            if (update.confidence !== undefined) {
+              currentOutputs.push({
+                agent_name: update.agentName,
+                output: {
+                  confidence: update.confidence,
+                },
+              });
+            }
+            
+            const lowConfFields = extractLowConfidenceFields(currentOutputs, 0.9);
+            
+            // Only show clarification if we haven't exceeded max rounds
+            if (lowConfFields.length > 0 && clarificationRound < 3) {
+              setLowConfidenceFields(lowConfFields);
+              setShowConfidenceClarification(true);
+            } else {
+              showSuccessToast('Analysis complete', 'Your query has been analyzed');
+            }
+          }
+        } else if (update.status === 'error') {
+          setLoading(false);
+          showErrorToast(`${update.agentName} failed`, update.message);
         }
       },
       (error) => {
         console.error('Status subscription error:', error);
         showErrorToast('Connection error', 'Lost connection to status updates');
+        setShowStatusPanel(false);
       }
     );
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [jobId, selectedDomain, addChatMessage, onVisualizationUpdate]);
+  }, [jobId, selectedDomain, addChatMessage, onVisualizationUpdate, agentStatuses]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,11 +203,19 @@ export default function QueryPanel({ onVisualizationUpdate }: { onVisualizationU
     // TypeScript guard - we know selectedDomain is not null here
     if (!selectedDomain) return;
 
+    // Store original question on first submission
+    if (!originalQuestion) {
+      setOriginalQuestion(queryText);
+    }
+
     setLoading(true);
     setStatusMessages([]);
     setResponse(null);
     setJobId(null);
     setShowClarification(false);
+    setAgentStatuses({});
+    setAgentNames([]);
+    setAgentOutputs([]);
 
     // Add user question to chat history
     addChatMessage(selectedDomain, {
@@ -145,6 +237,26 @@ export default function QueryPanel({ onVisualizationUpdate }: { onVisualizationU
     }
   };
 
+  const handleConfidenceClarificationSubmit = (clarifications: Record<string, string>) => {
+    // Append clarification to original question
+    const enhancedQuestion = formatEnhancedText(originalQuestion, clarifications);
+    
+    // Increment clarification round
+    setClarificationRound((prev) => prev + 1);
+    
+    // Update question and re-submit
+    setQuestion(enhancedQuestion);
+    setShowConfidenceClarification(false);
+    
+    // Re-submit with enhanced context
+    submitQueryToAPI(enhancedQuestion);
+  };
+
+  const handleConfidenceClarificationSkip = () => {
+    setShowConfidenceClarification(false);
+    showSuccessToast('Analysis complete', 'Your query has been analyzed (with low confidence)');
+  };
+
   const handleClarificationSubmit = (refinedQuery: string) => {
     submitQueryToAPI(refinedQuery);
   };
@@ -155,12 +267,20 @@ export default function QueryPanel({ onVisualizationUpdate }: { onVisualizationU
 
   const handleReset = () => {
     setQuestion('');
+    setOriginalQuestion('');
     setStatusMessages([]);
     setJobId(null);
     setResponse(null);
     setLoading(false);
     setShowClarification(false);
     setClarificationQuestions([]);
+    setAgentStatuses({});
+    setAgentNames([]);
+    setShowStatusPanel(false);
+    setShowConfidenceClarification(false);
+    setLowConfidenceFields([]);
+    setClarificationRound(0);
+    setAgentOutputs([]);
   };
 
   return (
@@ -195,6 +315,17 @@ export default function QueryPanel({ onVisualizationUpdate }: { onVisualizationU
           />
         </div>
 
+        {/* Confidence-based Clarification Dialog */}
+        {showConfidenceClarification && jobId && (
+          <ClarificationDialog
+            isOpen={showConfidenceClarification}
+            jobId={jobId}
+            lowConfidenceFields={lowConfidenceFields}
+            onSubmit={handleConfidenceClarificationSubmit}
+            onSkip={handleConfidenceClarificationSkip}
+          />
+        )}
+
         {/* Clarification Panel */}
         {showClarification && !loading && (
           <div className="mb-4">
@@ -207,8 +338,19 @@ export default function QueryPanel({ onVisualizationUpdate }: { onVisualizationU
           </div>
         )}
 
-        {/* Status Messages */}
-        {statusMessages.length > 0 && (
+        {/* Execution Status Panel */}
+        {showStatusPanel && jobId && agentNames.length > 0 && (
+          <div className="mb-4">
+            <ExecutionStatusPanel
+              jobId={jobId}
+              agentStatuses={agentStatuses}
+              agentNames={agentNames}
+            />
+          </div>
+        )}
+
+        {/* Status Messages (fallback for simple text display) */}
+        {!showStatusPanel && statusMessages.length > 0 && (
           <div className="mb-4 p-3 bg-muted rounded-md max-h-24 overflow-y-auto custom-scrollbar">
             {statusMessages.map((msg, index) => (
               <div key={index} className="text-sm text-foreground mb-1">

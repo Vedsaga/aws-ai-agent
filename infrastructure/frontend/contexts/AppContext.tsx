@@ -11,6 +11,7 @@ export interface ChatMessage {
     jobId?: string;
     agentName?: string;
     status?: string;
+    confidence?: number;
   };
 }
 

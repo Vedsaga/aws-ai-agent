@@ -124,6 +124,186 @@ export function getGeometryType(incident: Incident): 'Point' | 'LineString' | 'P
 }
 
 /**
+ * Render geometry on map based on type
+ */
+export function renderGeometry(
+  map: any,
+  incident: Incident,
+  onPopupCreate: (incident: Incident) => any
+): void {
+  const geometryType = getGeometryType(incident);
+  const category = incident.structured_data?.entity_agent?.category || 'default';
+  const colors = getCategoryColors(category);
+  
+  switch (geometryType) {
+    case 'Point':
+      renderPoint(map, incident, colors, onPopupCreate);
+      break;
+    case 'LineString':
+      renderLineString(map, incident, colors, onPopupCreate);
+      break;
+    case 'Polygon':
+      renderPolygon(map, incident, colors, onPopupCreate);
+      break;
+    default:
+      // Fallback to Point
+      renderPoint(map, incident, colors, onPopupCreate);
+  }
+}
+
+/**
+ * Render Point geometry as a marker
+ */
+export function renderPoint(
+  map: any,
+  incident: Incident,
+  colors: any,
+  onPopupCreate: (incident: Incident) => any
+): any {
+  const coords = getIncidentCoordinates(incident);
+  if (!coords) return null;
+  
+  const markerElement = createCustomMarker(incident);
+  const popup = onPopupCreate(incident);
+  
+  // Import mapboxgl dynamically to avoid SSR issues
+  const mapboxgl = require('mapbox-gl');
+  
+  const marker = new mapboxgl.Marker(markerElement)
+    .setLngLat(coords)
+    .setPopup(popup)
+    .addTo(map);
+  
+  return marker;
+}
+
+/**
+ * Render LineString geometry as a line
+ */
+export function renderLineString(
+  map: any,
+  incident: Incident,
+  colors: any,
+  onPopupCreate: (incident: Incident) => any
+): void {
+  const coordinates = incident.structured_data?.geo_agent?.coordinates || incident.coordinates;
+  if (!coordinates || !Array.isArray(coordinates)) return;
+  
+  const sourceId = `line-${incident.id}`;
+  const layerId = `line-${incident.id}`;
+  
+  // Add source
+  map.addSource(sourceId, {
+    type: 'geojson',
+    data: {
+      type: 'Feature',
+      properties: { incidentId: incident.id },
+      geometry: {
+        type: 'LineString',
+        coordinates: coordinates
+      }
+    }
+  });
+  
+  // Add layer with category color
+  map.addLayer({
+    id: layerId,
+    type: 'line',
+    source: sourceId,
+    paint: {
+      'line-color': colors.bg,
+      'line-width': 4,
+      'line-opacity': 0.8
+    }
+  });
+  
+  // Add click handler to show popup
+  map.on('click', layerId, (e: any) => {
+    onPopupCreate(incident)
+      .setLngLat(e.lngLat)
+      .addTo(map);
+  });
+  
+  // Add hover effect (cursor pointer)
+  map.on('mouseenter', layerId, () => {
+    map.getCanvas().style.cursor = 'pointer';
+  });
+  
+  map.on('mouseleave', layerId, () => {
+    map.getCanvas().style.cursor = '';
+  });
+}
+
+/**
+ * Render Polygon geometry as a filled area
+ */
+export function renderPolygon(
+  map: any,
+  incident: Incident,
+  colors: any,
+  onPopupCreate: (incident: Incident) => any
+): void {
+  const coordinates = incident.structured_data?.geo_agent?.coordinates || incident.coordinates;
+  if (!coordinates || !Array.isArray(coordinates)) return;
+  
+  const sourceId = `polygon-${incident.id}`;
+  const fillLayerId = `polygon-${incident.id}`;
+  const borderLayerId = `polygon-border-${incident.id}`;
+  
+  // Add source
+  map.addSource(sourceId, {
+    type: 'geojson',
+    data: {
+      type: 'Feature',
+      properties: { incidentId: incident.id },
+      geometry: {
+        type: 'Polygon',
+        coordinates: coordinates
+      }
+    }
+  });
+  
+  // Add fill layer with 30% opacity
+  map.addLayer({
+    id: fillLayerId,
+    type: 'fill',
+    source: sourceId,
+    paint: {
+      'fill-color': colors.bg,
+      'fill-opacity': 0.3
+    }
+  });
+  
+  // Add border layer with category color
+  map.addLayer({
+    id: borderLayerId,
+    type: 'line',
+    source: sourceId,
+    paint: {
+      'line-color': colors.border,
+      'line-width': 2,
+      'line-opacity': 0.8
+    }
+  });
+  
+  // Add click handler to show popup
+  map.on('click', fillLayerId, (e: any) => {
+    onPopupCreate(incident)
+      .setLngLat(e.lngLat)
+      .addTo(map);
+  });
+  
+  // Add hover effect (cursor pointer)
+  map.on('mouseenter', fillLayerId, () => {
+    map.getCanvas().style.cursor = 'pointer';
+  });
+  
+  map.on('mouseleave', fillLayerId, () => {
+    map.getCanvas().style.cursor = '';
+  });
+}
+
+/**
  * Format date for display
  */
 export function formatDate(dateString: string): string {

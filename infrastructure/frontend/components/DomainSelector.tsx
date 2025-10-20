@@ -8,18 +8,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { apiRequest } from '@/lib/api-client';
+import { listDomains, Domain } from '@/lib/api-client';
 import { showErrorToast } from '@/lib/toast-utils';
-
-interface Domain {
-  domain_id: string;
-  template_name: string;
-  description: string;
-  agent_configs?: any[];
-  playbook_configs?: any[];
-  created_by?: string;
-  created_at?: string;
-}
 
 interface DomainSelectorProps {
   selectedDomain: string | null;
@@ -34,33 +24,37 @@ export default function DomainSelector({
 }: DomainSelectorProps) {
   const [domains, setDomains] = useState<Domain[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const loadDomains = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await apiRequest<{ configs: Domain[]; count: number }>(
-        '/config?type=domain_template',
-        {},
-        false // Don't show toast for GET requests
-      );
+      setError(null);
+      
+      const response = await listDomains();
 
-      if (response.data?.configs) {
-        setDomains(response.data.configs);
+      if (response.data?.domains) {
+        // Display both built-in and custom domains
+        setDomains(response.data.domains);
         
         // Auto-select first domain if none selected
-        if (!selectedDomain && response.data.configs.length > 0) {
-          onDomainChange(response.data.configs[0].domain_id);
+        if (!selectedDomain && response.data.domains.length > 0) {
+          onDomainChange(response.data.domains[0].domain_id);
         }
       } else if (response.error) {
+        // Handle error states
+        setError(response.error);
+        setDomains([]);
+        
         // Only show error toast if it's not an auth error (401/403)
         if (response.status !== 401 && response.status !== 403) {
           showErrorToast('Failed to load domains', response.error);
         }
-        setDomains([]);
       }
     } catch (error) {
       console.error('Error loading domains:', error);
-      // Don't show toast for network errors during initial load
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setError(errorMessage);
       setDomains([]);
     } finally {
       setLoading(false);
@@ -71,6 +65,7 @@ export default function DomainSelector({
     loadDomains();
   }, [loadDomains]);
 
+  // Loading state
   if (loading) {
     return (
       <div className={`w-full ${className}`}>
@@ -83,6 +78,20 @@ export default function DomainSelector({
     );
   }
 
+  // Error state
+  if (error && domains.length === 0) {
+    return (
+      <div className={`w-full ${className}`}>
+        <Select disabled>
+          <SelectTrigger className="w-full border-red-500">
+            <SelectValue placeholder="Failed to load domains" />
+          </SelectTrigger>
+        </Select>
+      </div>
+    );
+  }
+
+  // Empty state
   if (domains.length === 0) {
     return (
       <div className={`w-full ${className}`}>
@@ -106,8 +115,9 @@ export default function DomainSelector({
             <SelectItem key={domain.domain_id} value={domain.domain_id}>
               <div className="flex flex-col">
                 <div className="font-medium">{domain.template_name}</div>
+                {/* Show domain description in dropdown */}
                 {domain.description && (
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-xs text-muted-foreground line-clamp-2">
                     {domain.description}
                   </div>
                 )}

@@ -246,7 +246,8 @@
       "output_schema": {
         "time_pattern": "string",
         "frequency": "string",
-        "trend": "string"
+        "trend": "string",
+        "confidence": "number"
       },
       "is_builtin": true
     },
@@ -259,7 +260,8 @@
       "output_schema": {
         "locations": "array",
         "hotspots": "array",
-        "distribution": "string"
+        "distribution": "string",
+        "confidence": "number"
       },
       "is_builtin": true
     },
@@ -272,7 +274,8 @@
       "output_schema": {
         "incident_types": "array",
         "common_issues": "array",
-        "summary": "string"
+        "summary": "string",
+        "confidence": "number"
       },
       "is_builtin": true
     },
@@ -285,7 +288,8 @@
       "output_schema": {
         "causes": "array",
         "factors": "array",
-        "analysis": "string"
+        "analysis": "string",
+        "confidence": "number"
       },
       "is_builtin": true
     },
@@ -298,7 +302,8 @@
       "output_schema": {
         "methods": "array",
         "process": "string",
-        "insights": "string"
+        "insights": "string",
+        "confidence": "number"
       },
       "is_builtin": true
     },
@@ -311,7 +316,78 @@
       "output_schema": {
         "entities": "array",
         "reporters": "string",
-        "affected": "string"
+        "affected": "string",
+        "confidence": "number"
+      },
+      "is_builtin": true
+    },
+    {
+      "agent_name": "Which Agent",
+      "agent_type": "query",
+      "interrogative": "which",
+      "system_prompt": "Analyze and identify specific items, options, or choices from a set. Answer questions about which incidents match criteria, which categories are most relevant, and which patterns are significant. Use the Retrieval API to filter and compare data.",
+      "tools": ["bedrock", "retrieval_api", "aggregation_api"],
+      "output_schema": {
+        "selected_items": "array",
+        "criteria": "string",
+        "reasoning": "string",
+        "confidence": "number"
+      },
+      "is_builtin": true
+    },
+    {
+      "agent_name": "How Many Agent",
+      "agent_type": "query",
+      "interrogative": "how_many",
+      "system_prompt": "Analyze quantitative aspects of the data. Answer questions about counts, frequencies, and numerical distributions. Use the Aggregation API to compute statistics and counts across different dimensions.",
+      "tools": ["bedrock", "aggregation_api", "retrieval_api"],
+      "output_schema": {
+        "count": "number",
+        "breakdown": "object",
+        "total": "number",
+        "confidence": "number"
+      },
+      "is_builtin": true
+    },
+    {
+      "agent_name": "How Much Agent",
+      "agent_type": "query",
+      "interrogative": "how_much",
+      "system_prompt": "Analyze quantitative measurements and magnitudes. Answer questions about amounts, degrees, extents, and intensity levels. Use the Analytics API to compute aggregated measurements and trends.",
+      "tools": ["bedrock", "analytics_api", "aggregation_api"],
+      "output_schema": {
+        "amount": "string",
+        "measurement": "string",
+        "scale": "string",
+        "confidence": "number"
+      },
+      "is_builtin": true
+    },
+    {
+      "agent_name": "From Where Agent",
+      "agent_type": "query",
+      "interrogative": "from_where",
+      "system_prompt": "Analyze origin and source locations. Answer questions about where incidents originated from, source regions, and directional patterns. Use the Spatial Query API for origin-based geospatial analysis.",
+      "tools": ["bedrock", "spatial_api", "retrieval_api"],
+      "output_schema": {
+        "origin_locations": "array",
+        "source_regions": "array",
+        "direction": "string",
+        "confidence": "number"
+      },
+      "is_builtin": true
+    },
+    {
+      "agent_name": "What Kind Agent",
+      "agent_type": "query",
+      "interrogative": "what_kind",
+      "system_prompt": "Analyze types, categories, and classifications. Answer questions about what kind of incidents occurred, types of issues, and categorical patterns. Use the Retrieval API to identify and classify incident types.",
+      "tools": ["bedrock", "retrieval_api", "aggregation_api"],
+      "output_schema": {
+        "types": "array",
+        "categories": "array",
+        "classification": "string",
+        "confidence": "number"
       },
       "is_builtin": true
     }

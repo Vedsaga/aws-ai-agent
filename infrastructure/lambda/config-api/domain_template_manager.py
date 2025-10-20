@@ -57,6 +57,107 @@ class DomainTemplateManager:
         
         return config_item
     
+    def create_from_agent_ids(self, tenant_id: str, user_id: str, template_name: str, domain_id: str, 
+                              ingest_agent_ids: List[str], query_agent_ids: List[str], 
+                              description: str = '') -> Dict[str, Any]:
+        """
+        Create a domain template from agent IDs (simplified creation)
+        
+        Args:
+            tenant_id: Tenant identifier
+            user_id: User identifier
+            template_name: Name of the domain template
+            domain_id: Domain identifier
+            ingest_agent_ids: List of ingestion agent IDs
+            query_agent_ids: List of query agent IDs
+            description: Optional description
+            
+        Returns:
+            Created domain template configuration
+        """
+        # Validate inputs
+        if not ingest_agent_ids or len(ingest_agent_ids) == 0:
+            raise ValueError("At least one ingestion agent is required")
+        
+        if not query_agent_ids or len(query_agent_ids) == 0:
+            raise ValueError("At least one query agent is required")
+        
+        # Fetch agent configurations from DynamoDB
+        agent_configs = []
+        dependency_edges = []
+        
+        all_agent_ids = ingest_agent_ids + query_agent_ids
+        
+        for agent_id in all_agent_ids:
+            response = self.table.get_item(
+                Key={
+                    'tenant_id': tenant_id,
+                    'config_key': f'agent#{agent_id}'
+                }
+            )
+            
+            agent = response.get('Item')
+            if not agent:
+                raise ValueError(f"Agent not found: {agent_id}")
+            
+            # Build agent config for template
+            agent_config = {
+                'agent_id': agent['agent_id'],
+                'agent_name': agent['agent_name'],
+                'agent_type': agent['agent_type'],
+                'system_prompt': agent['system_prompt'],
+                'tools': agent.get('tools', []),
+                'output_schema': agent['output_schema'],
+                'dependency_parent': agent.get('dependency_parent'),
+                'interrogative': agent.get('interrogative'),
+                'is_builtin': agent.get('is_builtin', False)
+            }
+            
+            agent_configs.append(agent_config)
+            
+            # Build dependency edges if agent has a parent
+            if agent.get('dependency_parent'):
+                dependency_edges.append({
+                    'from': agent['dependency_parent'],
+                    'to': agent['agent_id']
+                })
+        
+        # Build playbook configs
+        playbook_configs = [
+            {
+                'playbook_type': 'ingestion',
+                'agent_ids': ingest_agent_ids,
+                'description': f'Ingestion pipeline for {template_name}'
+            },
+            {
+                'playbook_type': 'query',
+                'agent_ids': query_agent_ids,
+                'description': f'Query pipeline for {template_name}'
+            }
+        ]
+        
+        # Build dependency graph configs
+        dependency_graph_configs = []
+        if dependency_edges:
+            dependency_graph_configs.append({
+                'edges': dependency_edges
+            })
+        
+        # Build full config
+        full_config = {
+            'template_name': template_name,
+            'domain_id': domain_id,
+            'description': description,
+            'agent_configs': agent_configs,
+            'playbook_configs': playbook_configs,
+            'dependency_graph_configs': dependency_graph_configs,
+            'ui_template': {},
+            'is_builtin': False
+        }
+        
+        # Call existing create method
+        return self.create(tenant_id, user_id, full_config)
+    
     def get(self, tenant_id: str, template_id: str) -> Optional[Dict[str, Any]]:
         """Get a domain template"""
         response = self.table.get_item(

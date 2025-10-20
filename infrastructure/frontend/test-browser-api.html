@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test - Browser</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #00ff00;
+        }
+        .container {
+            background: #000;
+            border: 2px solid #00ff00;
+            padding: 20px;
+            border-radius: 5px;
+        }
+        h1 {
+            color: #00ff00;
+            text-align: center;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #333;
+            border-radius: 3px;
+        }
+        .test-title {
+            font-weight: bold;
+            color: #ffff00;
+            margin-bottom: 10px;
+        }
+        .pass {
+            color: #00ff00;
+        }
+        .fail {
+            color: #ff0000;
+        }
+        .info {
+            color: #00aaff;
+        }
+        button {
+            background: #00ff00;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 3px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #00cc00;
+        }
+        input {
+            background: #222;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            padding: 8px;
+            margin: 5px;
+            width: 300px;
+        }
+        #output {
+            white-space: pre-wrap;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 API Test Suite - Browser Edition</h1>
+        
+        <div class="test-section">
+            <div class="test-title">Step 1: Authentication</div>
+            <input type="text" id="username" placeholder="Username" value="testuser">
+            <input type="password" id="password" placeholder="Password" value="TestPassword123!">
+            <button onclick="authenticate()">Authenticate</button>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">Step 2: API Tests</div>
+            <button onclick="testListAgents()">List Agents</button>
+            <button onclick="testListDomains()">List Domains</button>
+            <button onclick="testCreateAgent()">Create Agent</button>
+            <button onclick="testFetchData()">Fetch Data</button>
+            <button onclick="runAllTests()">Run All Tests</button>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">Test Output:</div>
+            <div id="output"></div>
+        </div>
+    </div>
+
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1000.0.min.js"></script>
+    <script>
+        const API_URL = 'https://vluqfpl2zi.execute-api.us-east-1.amazonaws.com/v1';
+        const USER_POOL_ID = 'us-east-1_7QZ7Y6Gbl';
+        const CLIENT_ID = '6gobbpage9af3nd7ahm3lchkct';
+        const REGION = 'us-east-1';
+        
+        AWS.config.region = REGION;
+        const cognito = new AWS.CognitoIdentityServiceProvider();
+        
+        let idToken = null;
+        
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const className = type === 'pass' ? 'pass' : type === 'fail' ? 'fail' : 'info';
+            output.innerHTML += `<span class="${className}">${message}</span>\n`;
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        function clearLog() {
+            document.getElementById('output').innerHTML = '';
+        }
+        
+        async function authenticate() {
+            clearLog();
+            log('=========================================');
+            log('Authentication Test');
+            log('=========================================\n');
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            log(`Authenticating as: ${username}...`);
+            
+            const params = {
+                AuthFlow: 'USER_PASSWORD_AUTH',
+                ClientId: CLIENT_ID,
+                AuthParameters: {
+                    USERNAME: username,
+                    PASSWORD: password,
+                },
+            };
+            
+            try {
+                const result = await cognito.initiateAuth(params).promise();
+                idToken = result.AuthenticationResult.IdToken;
+                
+                log('✅ PASS - Authentication successful', 'pass');
+                log(`   ID Token: ${idToken.substring(0, 50)}...`, 'info');
+                log('');
+                log('You can now run API tests!', 'pass');
+            } catch (error) {
+                log('❌ FAIL - Authentication failed', 'fail');
+                log(`   Error: ${error.message}`, 'fail');
+            }
+        }
+        
+        async function makeRequest(path, method, body = null) {
+            if (!idToken) {
+                log('❌ Please authenticate first!', 'fail');
+                return null;
+            }
+            
+            const options = {
+                method: method,
+                headers: {
+                    'Authorization': `Bearer ${idToken}`,
+                    'Content-Type': 'application/json',
+                },
+            };
+            
+            if (body) {
+                options.body = JSON.stringify(body);
+            }
+            
+            try {
+                const response = await fetch(API_URL + path, options);
+                const data = await response.json();
+                
+                return {
+                    status: response.status,
+                    data: data,
+                };
+            } catch (error) {
+                return {
+                    status: 0,
+                    error: error.message,
+                };
+            }
+        }
+        
+        async function testListAgents() {
+            log('\n-------------------------');
+            log('Test: List Agents');
+            log('-------------------------');
+            
+            const response = await makeRequest('/config?type=agent', 'GET');
+            
+            if (!response) return;
+            
+            if (response.status === 200) {
+                const agentCount = response.data.configs ? response.data.configs.length : 0;
+                log('✅ PASS - Listed agents successfully', 'pass');
+                log(`   Agent count: ${agentCount}`, 'info');
+                if (response.data.configs && response.data.configs[0]) {
+                    log(`   First agent: ${response.data.configs[0].agent_name || 'N/A'}`, 'info');
+                }
+            } else {
+                log(`❌ FAIL - HTTP ${response.status}`, 'fail');
+                log(`   Response: ${JSON.stringify(response.data).substring(0, 200)}`, 'fail');
+            }
+        }
+        
+        async function testListDomains() {
+            log('\n-------------------------');
+            log('Test: List Domains');
+            log('-------------------------');
+            
+            const response = await makeRequest('/config?type=domain_template', 'GET');
+            
+            if (!response) return;
+            
+            if (response.status === 200) {
+                const domainCount = response.data.configs ? response.data.configs.length : 0;
+                log('✅ PASS - Listed domains successfully', 'pass');
+                log(`   Domain count: ${domainCount}`, 'info');
+                if (response.data.configs && response.data.configs[0]) {
+                    log(`   First domain: ${response.data.configs[0].template_name || 'N/A'}`, 'info');
+                }
+            } else {
+                log(`❌ FAIL - HTTP ${response.status}`, 'fail');
+                log(`   Response: ${JSON.stringify(response.data).substring(0, 200)}`, 'fail');
+            }
+        }
+        
+        async function testCreateAgent() {
+            log('\n-------------------------');
+            log('Test: Create Custom Agent');
+            log('-------------------------');
+            
+            const agentConfig = {
+                type: 'agent',
+                config: {
+                    agent_name: 'Test Priority Agent',
+                    agent_type: 'ingestion',
+                    system_prompt: 'Extract priority level from civic complaints.',
+                    tools: ['bedrock'],
+                    output_schema: {
+                        priority: { type: 'string', required: true },
+                        urgency_score: { type: 'number', required: true },
+                        confidence: { type: 'number', required: true },
+                    },
+                },
+            };
+            
+            const response = await makeRequest('/config', 'POST', agentConfig);
+            
+            if (!response) return;
+            
+            if (response.status === 200 || response.status === 201) {
+                const agentId = response.data.config_id || response.data.agent_id || response.data.id;
+                log('✅ PASS - Created agent successfully', 'pass');
+                log(`   Agent ID: ${agentId}`, 'info');
+            } else {
+                log(`❌ FAIL - HTTP ${response.status}`, 'fail');
+                log(`   Response: ${JSON.stringify(response.data).substring(0, 200)}`, 'fail');
+            }
+        }
+        
+        async function testFetchData() {
+            log('\n-------------------------');
+            log('Test: Fetch Incidents Data');
+            log('-------------------------');
+            
+            const response = await makeRequest('/data?type=retrieval&limit=5', 'GET');
+            
+            if (!response) return;
+            
+            if (response.status === 200) {
+                const incidentCount = response.data.data ? response.data.data.length : 0;
+                log('✅ PASS - Fetched data successfully', 'pass');
+                log(`   Incident count: ${incidentCount}`, 'info');
+            } else {
+                log(`❌ FAIL - HTTP ${response.status}`, 'fail');
+                log(`   Response: ${JSON.stringify(response.data).substring(0, 200)}`, 'fail');
+            }
+        }
+        
+        async function runAllTests() {
+            if (!idToken) {
+                log('❌ Please authenticate first!', 'fail');
+                return;
+            }
+            
+            clearLog();
+            log('=========================================');
+            log('Running All API Tests');
+            log('=========================================');
+            
+            await testListAgents();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testListDomains();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testCreateAgent();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testFetchData();
+            
+            log('\n=========================================');
+            log('All Tests Complete');
+            log('=========================================');
+        }
+    </script>
+</body>
+</html>
