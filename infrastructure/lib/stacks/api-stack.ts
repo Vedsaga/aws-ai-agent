@@ -66,11 +66,55 @@ export class ApiStack extends cdk.Stack {
     // Create /api/v1 resource
     const apiV1 = this.api.root.addResource('api').addResource('v1');
 
-    // Create placeholder Lambda functions for endpoints (except config)
-    const ingestHandler = this.createPlaceholderLambda('IngestHandler', 'Handles data ingestion requests');
-    const queryHandler = this.createPlaceholderLambda('QueryHandler', 'Handles query requests');
-    const dataHandler = this.createPlaceholderLambda('DataHandler', 'Handles data retrieval requests');
-    const toolsHandler = this.createPlaceholderLambda('ToolsHandler', 'Handles tool registry requests');
+    // Create actual Lambda functions for endpoints
+    const ingestHandler = new lambda.Function(this, 'IngestHandler', {
+      functionName: `${this.stackName}-IngestHandler`,
+      runtime: lambda.Runtime.PYTHON_3_11,
+      handler: 'ingest_handler_simple.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../lambda/orchestration')),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 512,
+      environment: {
+        INCIDENTS_TABLE: `${this.stackName.replace('-Api', '-Data')}-Incidents`,
+      },
+      description: 'Handles data ingestion requests',
+    });
+    
+    const queryHandler = new lambda.Function(this, 'QueryHandler', {
+      functionName: `${this.stackName}-QueryHandler`,
+      runtime: lambda.Runtime.PYTHON_3_11,
+      handler: 'query_handler_simple.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../lambda/orchestration')),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 512,
+      environment: {
+        QUERIES_TABLE: `${this.stackName.replace('-Api', '-Data')}-Queries`,
+      },
+      description: 'Handles query requests',
+    });
+    
+    const dataHandler = new lambda.Function(this, 'DataHandler', {
+      functionName: `${this.stackName}-DataHandler`,
+      runtime: lambda.Runtime.PYTHON_3_11,
+      handler: 'retrieval_proxy.lambda_handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../lambda/data-api-proxies')),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 512,
+      description: 'Handles data retrieval requests',
+    });
+    
+    const toolsHandler = new lambda.Function(this, 'ToolsHandler', {
+      functionName: `${this.stackName}-ToolsHandler`,
+      runtime: lambda.Runtime.PYTHON_3_11,
+      handler: 'tool_registry.lambda_handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../lambda/tool-registry')),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 512,
+      environment: {
+        TOOL_CATALOG_TABLE: `${this.stackName.replace('-Api', '-Data')}-ToolCatalog`,
+      },
+      description: 'Handles tool registry requests',
+    });
     
     // Create actual config handler Lambda
     const configHandler = new lambda.Function(this, 'ConfigHandler', {

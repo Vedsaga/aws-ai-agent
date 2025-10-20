@@ -1,0 +1,713 @@
+🔐 Getting JWT token...
+✓ Got JWT token (1063 chars)
+
+================================================================================
+STARTING API TESTS
+================================================================================
+
+================================================================================
+CONFIG API - Core Configuration Management
+================================================================================
+
+================================================================================
+TEST 1: List All Agents
+================================================================================
+Description: Get all available agents (built-in and custom)
+Method: GET /api/v1/config?type=agent
+Status: 200 (expected: 200)
+Response Time: 1.53s
+Response Preview: {
+  "configs": [
+    {
+      "agent_id": "geo_agent",
+      "agent_name": "Geo Agent",
+      "agent_type": "geo",
+      "is_builtin": true
+    },
+    {
+      "agent_id": "temporal_agent",
+      "agent_name": "Temporal Agent",
+      "agent_type": "temporal",
+      "is_builtin": true
+    },
+    {
+      "agent_id": "what_agent",
+      "agent_name": "What Agent",
+      "agent_type": "query",
+      "is_builtin": true
+    },
+    {
+      "agent_id": "where_agent",
+      "agent_name": "Where Agent",
+   
+✓ PASS
+
+================================================================================
+TEST 2: List Domain Templates
+================================================================================
+Description: Get all configured domain templates
+Method: GET /api/v1/config?type=domain_template
+Status: 200 (expected: 200)
+Response Time: 0.82s
+Response Preview: {
+  "message": "Config API"
+}
+✓ PASS
+
+================================================================================
+TEST 3: List Playbooks
+================================================================================
+Description: Get all agent playbooks
+Method: GET /api/v1/config?type=playbook
+Status: 200 (expected: 200)
+Response Time: 0.82s
+Response Preview: {
+  "message": "Config API"
+}
+✓ PASS
+
+================================================================================
+TEST 4: Create Custom Agent
+================================================================================
+Description: Create a new custom agent
+Method: POST /api/v1/config
+Payload: {
+  "type": "agent",
+  "config": {
+    "agent_name": "Test Custom Agent",
+    "agent_type": "custom",
+    "system_prompt": "You are a helpful assistant that analyzes civic complaints.",
+    "tools": [
+Status: 201 (expected: 201)
+Response Time: 1.02s
+Response Preview: {
+  "agent_id": "agent_d2bc2b35",
+  "agent_name": "Test Custom Agent",
+  "agent_type": "custom",
+  "is_builtin": false,
+  "created_at": "2025-10-20T12:11:27.460672"
+}
+✓ PASS
+Created agent ID: agent_d2bc2b35
+
+================================================================================
+TEST 5: Get Specific Agent
+================================================================================
+Description: Retrieve details of created agent
+Method: GET /api/v1/config/agent/agent_d2bc2b35
+Status: 200 (expected: 200)
+Response Time: 0.82s
+Response Preview: {
+  "message": "Config API"
+}
+✓ PASS
+
+================================================================================
+TEST 6: Update Agent
+================================================================================
+Description: Update agent configuration
+Method: PUT /api/v1/config/agent/agent_d2bc2b35
+Payload: {
+  "config": {
+    "system_prompt": "Updated prompt for the agent",
+    "agent_name": "Updated Custom Agent"
+  }
+}
+Status: 200 (expected: 200)
+Response Time: 0.32s
+Response Preview: {
+  "message": "Config API"
+}
+✓ PASS
+
+================================================================================
+TEST 7: Create Domain Template
+================================================================================
+Description: Create a new domain template
+Method: POST /api/v1/config
+Payload: {
+  "type": "domain_template",
+  "config": {
+    "template_name": "Test Domain",
+    "domain_id": "test_domain_1760962288",
+    "description": "Test domain for API testing",
+    "ingest_agent_ids": [
+
+Status: 200 (expected: 201)
+Response Time: 0.91s
+Response Preview: {
+  "message": "Config API"
+}
+✗ FAIL - Expected 201, got 200
+
+================================================================================
+INGEST API - Data Ingestion & Report Submission
+================================================================================
+
+================================================================================
+TEST 8: Submit Simple Report
+================================================================================
+Description: Submit a basic civic complaint report
+Method: POST /api/v1/ingest
+Payload: {
+  "domain_id": "civic_complaints",
+  "text": "There is a large pothole on Main Street near the library intersection. It has been there for over two weeks and is causing traffic issues."
+}
+Status: 202 (expected: 202)
+Response Time: 1.43s
+Response Preview: {
+  "job_id": "job_8828023fa1ff43bf90d59fc397d6e1aa",
+  "status": "accepted",
+  "message": "Report submitted for processing",
+  "timestamp": "2025-10-20T12:11:30.939720",
+  "estimated_completion_seconds": 30
+}
+✓ PASS
+
+================================================================================
+TEST 9: Submit High Priority Report
+================================================================================
+Description: Submit high-priority emergency report
+Method: POST /api/v1/ingest
+Payload: {
+  "domain_id": "civic_complaints",
+  "text": "Emergency: Gas leak reported on Elm Street near apartment building #45. Strong odor detected by multiple residents.",
+  "priority": "high"
+}
+Status: 202 (expected: 202)
+Response Time: 1.02s
+Response Preview: {
+  "job_id": "job_93a882ffff58466f979828898e587676",
+  "status": "accepted",
+  "message": "Report submitted for processing",
+  "timestamp": "2025-10-20T12:11:31.941485",
+  "estimated_completion_seconds": 30
+}
+✓ PASS
+
+================================================================================
+TEST 10: Submit Report with Contact
+================================================================================
+Description: Submit report with reporter contact information
+Method: POST /api/v1/ingest
+Payload: {
+  "domain_id": "civic_complaints",
+  "text": "The traffic light at Oak and 5th Avenue has been malfunctioning. It stays red in all directions for extended periods.",
+  "reporter_contact": "citizen@e
+Status: 202 (expected: 202)
+Response Time: 0.41s
+Response Preview: {
+  "job_id": "job_794547b3adcb48cfb5d58ec9bee558b1",
+  "status": "accepted",
+  "message": "Report submitted for processing",
+  "timestamp": "2025-10-20T12:11:32.341980",
+  "estimated_completion_seconds": 30
+}
+✓ PASS
+
+================================================================================
+TEST 11: Submit Infrastructure Report
+================================================================================
+Description: Submit detailed infrastructure complaint
+Method: POST /api/v1/ingest
+Payload: {
+  "domain_id": "civic_complaints",
+  "text": "Multiple streetlights are out on Park Avenue between 1st and 5th streets. This has been ongoing for 3 days, making the area unsafe at night. Residents a
+Status: 202 (expected: 202)
+Response Time: 0.82s
+Response Preview: {
+  "job_id": "job_3344fbd349db4f9e9e6bdb59f5bcb715",
+  "status": "accepted",
+  "message": "Report submitted for processing",
+  "timestamp": "2025-10-20T12:11:33.216745",
+  "estimated_completion_seconds": 30
+}
+✓ PASS
+
+================================================================================
+TEST 12: Error: Missing Domain ID
+================================================================================
+Description: Expect validation error for missing domain_id
+Method: POST /api/v1/ingest
+Payload: {
+  "text": "Test report without domain"
+}
+Status: 400 (expected: 400)
+Response Time: 0.85s
+Response Preview: {
+  "message": "Invalid request body"
+}
+✓ PASS
+
+================================================================================
+TEST 13: Error: Missing Text
+================================================================================
+Description: Expect validation error for missing text
+Method: POST /api/v1/ingest
+Payload: {
+  "domain_id": "civic_complaints"
+}
+Status: 400 (expected: 400)
+Response Time: 0.38s
+Response Preview: {
+  "message": "Invalid request body"
+}
+✓ PASS
+
+================================================================================
+TEST 14: Error: Text Too Long
+================================================================================
+Description: Expect validation error for text exceeding 10000 chars
+Method: POST /api/v1/ingest
+Payload: {
+  "domain_id": "civic_complaints",
+  "text": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+Status: 400 (expected: 400)
+Response Time: 0.41s
+Response Preview: {
+  "error": "Text exceeds maximum length of 10000 characters",
+  "timestamp": "2025-10-20T12:11:34.813154",
+  "error_code": "ERR_400"
+}
+✓ PASS
+
+================================================================================
+QUERY API - Natural Language Questions
+================================================================================
+
+================================================================================
+TEST 15: What Query - Common Complaints
+================================================================================
+Description: Ask 'what' interrogative question
+Method: POST /api/v1/query
+Payload: {
+  "domain_id": "civic_complaints",
+  "question": "What are the most common types of complaints?"
+}
+Status: 202 (expected: 202)
+Response Time: 1.43s
+Response Preview: {
+  "job_id": "query_e60c3ee52c1c4981b99750a597bbf031",
+  "status": "accepted",
+  "message": "Question submitted for processing",
+  "timestamp": "2025-10-20T12:11:36.214161",
+  "estimated_completion_seconds": 10
+}
+✓ PASS
+
+================================================================================
+TEST 16: Where Query - Geographic Distribution
+================================================================================
+Description: Ask 'where' interrogative question
+Method: POST /api/v1/query
+Payload: {
+  "domain_id": "civic_complaints",
+  "question": "Where are most infrastructure complaints located?"
+}
+Status: 202 (expected: 202)
+Response Time: 0.82s
+Response Preview: {
+  "job_id": "query_1c7f2557f8ce4ff2a18f18b3437246a7",
+  "status": "accepted",
+  "message": "Question submitted for processing",
+  "timestamp": "2025-10-20T12:11:37.078641",
+  "estimated_completion_seconds": 10
+}
+✓ PASS
+
+================================================================================
+TEST 17: When Query - Time Analysis
+================================================================================
+Description: Ask 'when' interrogative question
+Method: POST /api/v1/query
+Payload: {
+  "domain_id": "civic_complaints",
+  "question": "When do most complaints get reported?"
+}
+Status: 202 (expected: 202)
+Response Time: 0.41s
+Response Preview: {
+  "job_id": "query_7a26e9dc77c04dce8e127d4b707c8c58",
+  "status": "accepted",
+  "message": "Question submitted for processing",
+  "timestamp": "2025-10-20T12:11:37.465015",
+  "estimated_completion_seconds": 10
+}
+✓ PASS
+
+================================================================================
+TEST 18: How Many Query - Count Analysis
+================================================================================
+Description: Ask 'how many' interrogative question
+Method: POST /api/v1/query
+Payload: {
+  "domain_id": "civic_complaints",
+  "question": "How many pothole complaints were reported this month?"
+}
+Status: 202 (expected: 202)
+Response Time: 0.41s
+Response Preview: {
+  "job_id": "query_9b057142ea304565b44667da1e16e869",
+  "status": "accepted",
+  "message": "Question submitted for processing",
+  "timestamp": "2025-10-20T12:11:37.878788",
+  "estimated_completion_seconds": 10
+}
+✓ PASS
+
+================================================================================
+TEST 19: Query with Date Range Filter
+================================================================================
+Description: Query with temporal filter
+Method: POST /api/v1/query
+Payload: {
+  "domain_id": "civic_complaints",
+  "question": "What complaints were reported recently?",
+  "filters": {
+    "date_range": {
+      "start": "2025-01-01",
+      "end": "2025-01-31"
+    }
+  }
+}
+Status: 202 (expected: 202)
+Response Time: 0.82s
+Response Preview: {
+  "job_id": "query_4e415b3afcf8490fbd83ed22637dd82b",
+  "status": "accepted",
+  "message": "Question submitted for processing",
+  "timestamp": "2025-10-20T12:11:38.733086",
+  "estimated_completion_seconds": 10
+}
+✓ PASS
+
+================================================================================
+TEST 20: Query with Category Filter
+================================================================================
+Description: Query with category filter
+Method: POST /api/v1/query
+Payload: {
+  "domain_id": "civic_complaints",
+  "question": "Summarize the infrastructure issues",
+  "filters": {
+    "category": "infrastructure"
+  }
+}
+Status: 202 (expected: 202)
+Response Time: 0.41s
+Response Preview: {
+  "job_id": "query_22bf0164674345419a0d5700b4ae7ffe",
+  "status": "accepted",
+  "message": "Question submitted for processing",
+  "timestamp": "2025-10-20T12:11:39.113574",
+  "estimated_completion_seconds": 10
+}
+✓ PASS
+
+================================================================================
+TEST 21: Complex Multi-Agent Query
+================================================================================
+Description: Complex query requiring multiple agents
+Method: POST /api/v1/query
+Payload: {
+  "domain_id": "civic_complaints",
+  "question": "What are the top 5 complaint categories in downtown during the last 30 days, and where are they concentrated?"
+}
+Status: 202 (expected: 202)
+Response Time: 0.41s
+Response Preview: {
+  "job_id": "query_f3d1eb75902b49af8752166a89ddc3e8",
+  "status": "accepted",
+  "message": "Question submitted for processing",
+  "timestamp": "2025-10-20T12:11:39.519683",
+  "estimated_completion_seconds": 10
+}
+✓ PASS
+
+================================================================================
+TEST 22: Query with Visualizations
+================================================================================
+Description: Request query results with visualizations
+Method: POST /api/v1/query
+Payload: {
+  "domain_id": "civic_complaints",
+  "question": "Show me a breakdown of complaints by type",
+  "include_visualizations": true
+}
+Status: 202 (expected: 202)
+Response Time: 0.41s
+Response Preview: {
+  "job_id": "query_0c01ed9e0f8240318635179516abcdf1",
+  "status": "accepted",
+  "message": "Question submitted for processing",
+  "timestamp": "2025-10-20T12:11:39.924409",
+  "estimated_completion_seconds": 10
+}
+✓ PASS
+
+================================================================================
+TEST 23: Error: Missing Domain ID
+================================================================================
+Description: Expect validation error for missing domain_id
+Method: POST /api/v1/query
+Payload: {
+  "question": "Test question without domain"
+}
+Status: 400 (expected: 400)
+Response Time: 0.41s
+Response Preview: {
+  "message": "Invalid request body"
+}
+✓ PASS
+
+================================================================================
+TEST 24: Error: Missing Question
+================================================================================
+Description: Expect validation error for missing question
+Method: POST /api/v1/query
+Payload: {
+  "domain_id": "civic_complaints"
+}
+Status: 400 (expected: 400)
+Response Time: 0.82s
+Response Preview: {
+  "message": "Invalid request body"
+}
+✓ PASS
+
+================================================================================
+TEST 25: Error: Question Too Long
+================================================================================
+Description: Expect validation error for question exceeding 1000 chars
+Method: POST /api/v1/query
+Payload: {
+  "domain_id": "civic_complaints",
+  "question": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+Status: 400 (expected: 400)
+Response Time: 0.61s
+Response Preview: {
+  "error": "Question exceeds maximum length of 1000 characters",
+  "timestamp": "2025-10-20T12:11:41.719246",
+  "error_code": "ERR_400"
+}
+✓ PASS
+
+================================================================================
+TOOLS API - Tool Registry
+================================================================================
+
+================================================================================
+TEST 26: List Available Tools
+================================================================================
+Description: Get all registered tools in the system
+Method: GET /api/v1/tools
+Status: 200 (expected: 200)
+Response Time: 0.94s
+Response Preview: {
+  "tools": [
+    {
+      "tool_name": "bedrock",
+      "tool_type": "llm",
+      "is_builtin": true
+    }
+  ],
+  "count": 1
+}
+✓ PASS
+
+================================================================================
+DATA API - Data Retrieval
+================================================================================
+
+================================================================================
+TEST 27: Retrieve Incident Data
+================================================================================
+Description: Retrieve stored incident data
+Method: GET /api/v1/data?domain_id=civic_complaints&limit=10
+Status: 200 (expected: 200)
+Response Time: 0.53s
+Response Preview: {
+  "status": "success",
+  "data": [],
+  "count": 0
+}
+✓ PASS
+
+================================================================================
+EDGE CASES & ERROR HANDLING
+================================================================================
+
+================================================================================
+TEST 28: Unauthorized Access - No Token
+================================================================================
+Status: 401 (expected: 401)
+✓ PASS - Correctly rejected unauthorized request
+
+================================================================================
+TEST 29: Error: Invalid Config Type
+================================================================================
+Description: Query with invalid type should return empty list
+Method: GET /api/v1/config?type=invalid_type
+Status: 200 (expected: 200)
+Response Time: 0.82s
+Response Preview: {
+  "message": "Config API"
+}
+✓ PASS
+
+================================================================================
+TEST 30: Delete Custom Agent
+================================================================================
+Description: Delete previously created custom agent
+Method: DELETE /api/v1/config/agent/agent_d2bc2b35
+Status: 200 (expected: 200)
+Response Time: 0.82s
+Response Preview: {
+  "message": "Config API"
+}
+✓ PASS
+
+================================================================================
+END-TO-END SCENARIOS
+================================================================================
+
+📋 SCENARIO 1: Civic Complaint Workflow
+--------------------------------------------------------------------------------
+Step 1: Create custom domain...
+
+================================================================================
+TEST 31: E2E: Create Domain
+================================================================================
+Method: POST /api/v1/config
+Payload: {
+  "type": "domain_template",
+  "config": {
+    "template_name": "E2E Test Domain",
+    "domain_id": "e2e_test_1760962306",
+    "description": "End-to-end testing domain",
+    "ingest_agent_ids": [
+ 
+Status: 200 (expected: 201)
+Response Time: 0.82s
+Response Preview: {
+  "message": "Config API"
+}
+✗ FAIL - Expected 201, got 200
+
+Step 2: Submit multiple reports...
+
+================================================================================
+TEST 32: E2E: Submit Report 1
+================================================================================
+Method: POST /api/v1/ingest
+Payload: {
+  "domain_id": "civic_complaints",
+  "text": "Broken streetlight on Oak Street"
+}
+Status: 202 (expected: 202)
+Response Time: 0.82s
+Response Preview: {
+  "job_id": "job_74b8321dd3a54780ac8484b661e3fa2d",
+  "status": "accepted",
+  "message": "Report submitted for processing",
+  "timestamp": "2025-10-20T12:11:47.526035",
+  "estimated_completion_seconds": 30
+}
+✓ PASS
+
+================================================================================
+TEST 33: E2E: Submit Report 2
+================================================================================
+Method: POST /api/v1/ingest
+Payload: {
+  "domain_id": "civic_complaints",
+  "text": "Pothole at Main and 5th intersection"
+}
+Status: 202 (expected: 202)
+Response Time: 0.73s
+Response Preview: {
+  "job_id": "job_793ed274ac804a7282b6d13f2881ede5",
+  "status": "accepted",
+  "message": "Report submitted for processing",
+  "timestamp": "2025-10-20T12:11:48.521281",
+  "estimated_completion_seconds": 30
+}
+✓ PASS
+
+================================================================================
+TEST 34: E2E: Submit Report 3
+================================================================================
+Method: POST /api/v1/ingest
+Payload: {
+  "domain_id": "civic_complaints",
+  "text": "Graffiti on public building at City Hall"
+}
+Status: 202 (expected: 202)
+Response Time: 0.52s
+Response Preview: {
+  "job_id": "job_23fda3dbe35b4b7bb8f2c2ee28243b20",
+  "status": "accepted",
+  "message": "Report submitted for processing",
+  "timestamp": "2025-10-20T12:11:49.739396",
+  "estimated_completion_seconds": 30
+}
+✓ PASS
+
+Step 3: Query the data...
+
+================================================================================
+TEST 35: E2E: Query Submitted Reports
+================================================================================
+Method: POST /api/v1/query
+Payload: {
+  "domain_id": "civic_complaints",
+  "question": "What types of issues were reported?"
+}
+Status: 202 (expected: 202)
+Response Time: 0.93s
+Response Preview: {
+  "job_id": "query_96feb74f1d954d129a1376bd10626f51",
+  "status": "accepted",
+  "message": "Question submitted for processing",
+  "timestamp": "2025-10-20T12:11:51.221777",
+  "estimated_completion_seconds": 10
+}
+✓ PASS
+
+================================================================================
+TEST EXECUTION SUMMARY
+================================================================================
+
+Total Tests: 35
+✓ Passed: 33
+✗ Failed: 2
+Success Rate: 94.3%
+
+================================================================================
+FAILED TESTS
+================================================================================
+
+❌ Test 7: Create Domain Template
+   Method: POST /api/v1/config
+   Status: 200 (expected: 201)
+
+❌ Test 31: E2E: Create Domain
+   Method: POST /api/v1/config
+   Status: 200 (expected: 201)
+
+📄 Detailed results saved to: test_results_20251020_174151.json
+
+================================================================================
+API ENDPOINT STATUS
+================================================================================
+
+Working Endpoints:
+  ✓ Config API: 8 tests passed
+  ✓ Ingest API: 10 tests passed
+  ✓ Query API: 12 tests passed
+  ✓ Tools API: 1 tests passed
+  ✓ Data API: 1 tests passed
+
+================================================================================
+⚠ 2 TEST(S) FAILED - REVIEW REQUIRED
+================================================================================

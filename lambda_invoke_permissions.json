@@ -1,0 +1,13 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "lambda:InvokeFunction",
+        "lambda:InvokeAsync"
+      ],
+      "Resource": "arn:aws:lambda:us-east-1:847272187168:function:MultiAgentOrchestration-dev-Orchestrator"
+    }
+  ]
+}

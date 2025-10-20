@@ -1,0 +1,13 @@
+{
+  "httpMethod": "GET",
+  "path": "/api/v1/config",
+  "queryStringParameters": {
+    "type": "agent"
+  },
+  "requestContext": {
+    "authorizer": {
+      "tenantId": "test-tenant",
+      "userId": "test-user"
+    }
+  }
+}

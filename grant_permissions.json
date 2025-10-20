@@ -1,0 +1,20 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:PutItem",
+        "dynamodb:GetItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:Query",
+        "dynamodb:Scan",
+        "dynamodb:DescribeTable"
+      ],
+      "Resource": [
+        "arn:aws:dynamodb:us-east-1:847272187168:table/MultiAgentOrchestration-dev-Data-Incidents",
+        "arn:aws:dynamodb:us-east-1:847272187168:table/MultiAgentOrchestration-dev-Data-Queries"
+      ]
+    }
+  ]
+}

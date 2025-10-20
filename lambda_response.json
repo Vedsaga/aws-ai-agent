@@ -1,0 +1,1 @@
+{"statusCode": 401, "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Credentials": true}, "body": "{\"error\": \"Unauthorized: Missing tenant_id\", \"timestamp\": \"2025-10-20T11:14:42.796539\"}"}

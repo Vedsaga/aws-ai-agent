@@ -220,7 +220,7 @@ This implementation plan converts the API testing and documentation design into 
   - Create action plan for remaining time
   - _Requirements: 18.1-18.10_
 
-- [ ] 4. Create demo script for judges
+- [x] 4. Create demo script for judges
   - Document step-by-step demo with curl commands
   - Include expected responses
   - Add timing estimates
@@ -293,14 +293,14 @@ This implementation plan converts the API testing and documentation design into 
   - How to verify deployment
   - _Requirements: 15.9_
 
-- [ ] 5. Fix critical gaps (if time permits)
+- [-] 5. Fix critical gaps (if time permits)
   - Address demo-blocking issues first
   - Fix critical validation issues
   - Fix critical error handling issues
   - Re-run tests to verify fixes
   - _Requirements: 18.1-18.10_
 
-- [ ] 5.1 Fix demo-blocking issues
+- [x] 5.1 Fix demo-blocking issues
   - Identify issues that prevent demo from working
   - Prioritize by impact on demo flow
   - Fix one by one

@@ -1,6 +1,6 @@
 """
-Configuration API Handler - Fixed for Authorizer Context
-Handles CRUD operations for agent and domain configurations
+Simplified Configuration API Handler - DynamoDB Only
+Handles basic CRUD operations for agent and domain configurations
 """
 
 import json
@@ -9,11 +9,6 @@ import boto3
 from datetime import datetime
 import uuid
 import traceback
-import logging
-
-# Configure logging
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
 
 # Initialize AWS clients
 dynamodb = boto3.resource("dynamodb")
@@ -26,9 +21,8 @@ CONFIGURATIONS_TABLE = os.environ.get(
 # Initialize DynamoDB table
 try:
     config_table = dynamodb.Table(CONFIGURATIONS_TABLE)
-    logger.info(f"Initialized DynamoDB table: {CONFIGURATIONS_TABLE}")
 except Exception as e:
-    logger.error(f"Could not initialize DynamoDB table: {e}")
+    print(f"Warning: Could not initialize DynamoDB table: {e}")
     config_table = None
 
 
@@ -36,13 +30,7 @@ def handler(event, context):
     """
     Main Lambda handler - simplified for quick deployment
     """
-    logger.info("=" * 80)
-    logger.info("=== HANDLER ENTRY ===")
-    logger.info("=" * 80)
-    logger.info(f"Event: {json.dumps(event, default=str)}")
-    logger.info(f"Event keys: {list(event.keys())}")
-    logger.info(f"Context: {context}")
-    logger.info(f"Request ID: {context.request_id if context else 'N/A'}")
+    print(f"Event: {json.dumps(event)}")
 
     try:
         # Extract request details
@@ -63,17 +51,12 @@ def handler(event, context):
         tenant_id = extract_tenant_id(event)
         user_id = extract_user_id(event)
 
-        logger.info(
-            f"Method: {http_method}, Path: {path}, Tenant: {tenant_id}, User: {user_id}"
-        )
+        print(f"Method: {http_method}, Path: {path}, Tenant: {tenant_id}")
 
         # Route requests
         if http_method == "GET" and query_params.get("type"):
             # List configurations by type
-            logger.info(f"Routing to list_configurations: type={query_params.get('type')}")
-            result = list_configurations(tenant_id, query_params.get("type"), user_id)
-            logger.info(f"list_configurations returned: {json.dumps(result, default=str)[:200]}")
-            return result
+            return list_configurations(tenant_id, query_params.get("type"), user_id)
 
         elif http_method == "GET" and path_params:
             # Get specific configuration
@@ -103,39 +86,29 @@ def handler(event, context):
             return error_response(400, "Invalid request format")
 
     except Exception as e:
-        logger.error("=" * 80)
-        logger.error("=== EXCEPTION CAUGHT ===")
-        logger.error("=" * 80)
-        logger.error(f"ERROR: {str(e)}")
-        logger.error(f"ERROR TYPE: {type(e).__name__}")
-        logger.error(traceback.format_exc())
-        response = error_response(500, f"Internal server error: {str(e)}")
-        logger.error(f"Returning error response: {json.dumps(response)}")
-        return response
+        print(f"ERROR: {str(e)}")
+        print(traceback.format_exc())
+        return error_response(500, f"Internal server error: {str(e)}")
 
 
 def list_configurations(tenant_id, config_type, user_id=None):
     """List all configurations of a given type"""
     try:
-        logger.info(f"Listing configs: type={config_type}, tenant={tenant_id}")
+        print(f"Listing configs: type={config_type}, tenant={tenant_id}")
 
         if not config_table:
             return error_response(500, "Database not available")
 
         # Scan table with filter (use boto3 condition expressions)
-        try:
-            from boto3.dynamodb.conditions import Attr
+        from boto3.dynamodb.conditions import Attr
 
-            filter_expr = Attr("config_type").eq(config_type)
-            if tenant_id != "default-tenant":
-                filter_expr = filter_expr & Attr("tenant_id").eq(tenant_id)
+        filter_expr = Attr("config_type").eq(config_type)
+        if tenant_id != "default-tenant":
+            filter_expr = filter_expr & Attr("tenant_id").eq(tenant_id)
 
-            response = config_table.scan(
-                FilterExpression=filter_expr,
-            )
-        except Exception as e:
-            logger.error(f"DynamoDB scan error: {e}")
-            return error_response(500, f"Database query failed: {str(e)}")
+        response = config_table.scan(
+            FilterExpression=filter_expr,
+        )
 
         items = response.get("Items", [])
 
@@ -143,22 +116,20 @@ def list_configurations(tenant_id, config_type, user_id=None):
         for item in items:
             item["created_by_me"] = item.get("created_by") == user_id
 
-        logger.info(f"Found {len(items)} configurations")
+        print(f"Found {len(items)} configurations")
 
         return success_response({"configs": items, "count": len(items)})
 
     except Exception as e:
-        logger.error(f"Error listing configs: {e}")
-        logger.error(traceback.format_exc())
+        print(f"Error listing configs: {e}")
+        print(traceback.format_exc())
         return error_response(500, f"Failed to list configurations: {str(e)}")
 
 
 def get_configuration(tenant_id, config_type, config_id):
     """Get a specific configuration"""
     try:
-        logger.info(
-            f"Getting config: type={config_type}, id={config_id}, tenant={tenant_id}"
-        )
+        print(f"Getting config: type={config_type}, id={config_id}, tenant={tenant_id}")
 
         if not config_table:
             return error_response(500, "Database not available")
@@ -176,8 +147,8 @@ def get_configuration(tenant_id, config_type, config_id):
         return success_response(item)
 
     except Exception as e:
-        logger.error(f"Error getting config: {e}")
-        logger.error(traceback.format_exc())
+        print(f"Error getting config: {e}")
+        print(traceback.format_exc())
         return error_response(500, f"Failed to get configuration: {str(e)}")
 
 
@@ -193,7 +164,7 @@ def create_configuration(tenant_id, user_id, body):
         if not config_data:
             return error_response(400, "Missing required field: config")
 
-        logger.info(f"Creating config: type={config_type}, tenant={tenant_id}")
+        print(f"Creating config: type={config_type}, tenant={tenant_id}")
 
         if not config_table:
             return error_response(500, "Database not available")
@@ -240,13 +211,13 @@ def create_configuration(tenant_id, user_id, body):
         # Save to DynamoDB
         config_table.put_item(Item=item)
 
-        logger.info(f"Created config: {config_id}")
+        print(f"Created config: {config_id}")
 
         return success_response(item, status_code=201)
 
     except Exception as e:
-        logger.error(f"Error creating config: {e}")
-        logger.error(traceback.format_exc())
+        print(f"Error creating config: {e}")
+        print(traceback.format_exc())
         return error_response(500, f"Failed to create configuration: {str(e)}")
 
 
@@ -258,7 +229,7 @@ def update_configuration(tenant_id, user_id, config_type, config_id, body):
         if not config_data:
             return error_response(400, "Missing required field: config")
 
-        logger.info(
+        print(
             f"Updating config: type={config_type}, id={config_id}, tenant={tenant_id}"
         )
 
@@ -285,20 +256,20 @@ def update_configuration(tenant_id, user_id, config_type, config_id, body):
         # Save updated item
         config_table.put_item(Item=updated_item)
 
-        logger.info(f"Updated config: {config_id}")
+        print(f"Updated config: {config_id}")
 
         return success_response(updated_item)
 
     except Exception as e:
-        logger.error(f"Error updating config: {e}")
-        logger.error(traceback.format_exc())
+        print(f"Error updating config: {e}")
+        print(traceback.format_exc())
         return error_response(500, f"Failed to update configuration: {str(e)}")
 
 
 def delete_configuration(tenant_id, config_type, config_id):
     """Delete a configuration"""
     try:
-        logger.info(
+        print(
             f"Deleting config: type={config_type}, id={config_id}, tenant={tenant_id}"
         )
 
@@ -321,13 +292,13 @@ def delete_configuration(tenant_id, config_type, config_id):
         # Delete item
         config_table.delete_item(Key={"tenant_id": tenant_id, "config_key": config_id})
 
-        logger.info(f"Deleted config: {config_id}")
+        print(f"Deleted config: {config_id}")
 
         return success_response({"message": f"{config_type} deleted successfully"})
 
     except Exception as e:
-        logger.error(f"Error deleting config: {e}")
-        logger.error(traceback.format_exc())
+        print(f"Error deleting config: {e}")
+        print(traceback.format_exc())
         return error_response(500, f"Failed to delete configuration: {str(e)}")
 
 
@@ -335,28 +306,24 @@ def extract_tenant_id(event):
     """Extract tenant_id from event - handles both snake_case and camelCase"""
     # Try authorizer context first (supports both formats)
     authorizer = event.get("requestContext", {}).get("authorizer", {})
-
+    
     # Try camelCase (from Lambda authorizer context)
     tenant_id = authorizer.get("tenantId")
     if tenant_id:
-        logger.info(f"Got tenant_id from authorizer.tenantId: {tenant_id}")
         return tenant_id
-
+    
     # Try snake_case
     tenant_id = authorizer.get("tenant_id")
     if tenant_id:
-        logger.info(f"Got tenant_id from authorizer.tenant_id: {tenant_id}")
         return tenant_id
 
     # Try custom header
     headers = event.get("headers", {})
     tenant_id = headers.get("X-Tenant-ID") or headers.get("x-tenant-id")
     if tenant_id:
-        logger.info(f"Got tenant_id from header: {tenant_id}")
         return tenant_id
 
     # Default for demo
-    logger.warning("No tenant_id found, using default-tenant")
     return "default-tenant"
 
 
@@ -364,17 +331,17 @@ def extract_user_id(event):
     """Extract user_id from event - handles both snake_case and camelCase"""
     # Try authorizer context (supports both formats)
     authorizer = event.get("requestContext", {}).get("authorizer", {})
-
+    
     # Try camelCase
     user_id = authorizer.get("userId")
     if user_id:
         return user_id
-
+    
     # Try snake_case
     user_id = authorizer.get("user_id")
     if user_id:
         return user_id
-
+    
     # Try sub claim
     user_id = authorizer.get("sub")
     if user_id:
@@ -415,5 +382,4 @@ def cors_headers():
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Tenant-ID",
         "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
-        "Access-Control-Allow-Credentials": "true",
     }
