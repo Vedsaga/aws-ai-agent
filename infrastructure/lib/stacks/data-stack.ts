@@ -204,6 +204,122 @@ export class DataStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
+    // 5. Reports Table - Core data documents for ingestion and management
+    const reportsTable = new dynamodb.Table(this, 'ReportsTable', {
+      tableName: `${id}-Reports`,
+      partitionKey: {
+        name: 'incident_id',
+        type: dynamodb.AttributeType.STRING,
+      },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      encryption: dynamodb.TableEncryption.AWS_MANAGED,
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true,
+      },
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
+    // GSI for tenant-domain queries
+    reportsTable.addGlobalSecondaryIndex({
+      indexName: 'tenant-domain-index',
+      partitionKey: {
+        name: 'tenant_id',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'domain_id',
+        type: dynamodb.AttributeType.STRING,
+      },
+    });
+
+    // GSI for domain-created queries
+    reportsTable.addGlobalSecondaryIndex({
+      indexName: 'domain-created-index',
+      partitionKey: {
+        name: 'domain_id',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'created_at',
+        type: dynamodb.AttributeType.STRING,
+      },
+    });
+
+    // 6. Sessions Table - Chat conversation contexts
+    const sessionsTable = new dynamodb.Table(this, 'SessionsTable', {
+      tableName: `${id}-Sessions`,
+      partitionKey: {
+        name: 'session_id',
+        type: dynamodb.AttributeType.STRING,
+      },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      encryption: dynamodb.TableEncryption.AWS_MANAGED,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    // GSI for user-activity queries
+    sessionsTable.addGlobalSecondaryIndex({
+      indexName: 'user-activity-index',
+      partitionKey: {
+        name: 'user_id',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'last_activity',
+        type: dynamodb.AttributeType.STRING,
+      },
+    });
+
+    // 7. Messages Table - Chat messages with grounding references
+    const messagesTable = new dynamodb.Table(this, 'MessagesTable', {
+      tableName: `${id}-Messages`,
+      partitionKey: {
+        name: 'message_id',
+        type: dynamodb.AttributeType.STRING,
+      },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      encryption: dynamodb.TableEncryption.AWS_MANAGED,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    // GSI for session-timestamp queries
+    messagesTable.addGlobalSecondaryIndex({
+      indexName: 'session-timestamp-index',
+      partitionKey: {
+        name: 'session_id',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'timestamp',
+        type: dynamodb.AttributeType.STRING,
+      },
+    });
+
+    // 8. QueryJobs Table - Query execution tracking with results
+    const queryJobsTable = new dynamodb.Table(this, 'QueryJobsTable', {
+      tableName: `${id}-QueryJobs`,
+      partitionKey: {
+        name: 'query_id',
+        type: dynamodb.AttributeType.STRING,
+      },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      encryption: dynamodb.TableEncryption.AWS_MANAGED,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    // GSI for session-created queries
+    queryJobsTable.addGlobalSecondaryIndex({
+      indexName: 'session-created-index',
+      partitionKey: {
+        name: 'session_id',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'created_at',
+        type: dynamodb.AttributeType.STRING,
+      },
+    });
+
     // OpenSearch removed for demo - not critical for agent configuration features
     // Saves ~$36/month and avoids VPC complexity
     // Vector search functionality can be added later if needed
