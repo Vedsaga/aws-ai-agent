@@ -1,9 +1,22 @@
 #!/bin/bash
 # Add missing query agents to DynamoDB
 
-TABLE_NAME="MultiAgentOrchestration-dev-Data-Configurations"
+# Load configuration from config file or environment variables
+if [ -f "config/deployment.json" ]; then
+    echo "Loading configuration from config/deployment.json"
+    REGION=$(jq -r '.region' config/deployment.json)
+    STAGE=$(jq -r '.stage' config/deployment.json)
+    PROJECT_NAME=$(jq -r '.projectName' config/deployment.json)
+    TABLE_NAME="${PROJECT_NAME}-${STAGE}-Data-Configurations"
+else
+    echo "config/deployment.json not found, using environment variables"
+    REGION="${AWS_REGION:-us-east-1}"
+    TABLE_NAME="${CONFIGURATIONS_TABLE:-MultiAgentOrchestration-dev-Data-Configurations}"
+fi
+
 TIMESTAMP=$(date +%s)
 
+echo "Using region: $REGION"
 echo "Adding missing query agents to table: $TABLE_NAME"
 
 # Why Agent

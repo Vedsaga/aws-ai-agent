@@ -1,0 +1,11 @@
+{
+  "region": "us-east-1",
+  "stage": "dev",
+  "projectName": "MultiAgentOrchestration",
+  "stackPrefix": "MultiAgentOrchestration-dev",
+  "tags": {
+    "Project": "MultiAgentOrchestration",
+    "Environment": "dev",
+    "ManagedBy": "CDK"
+  }
+}

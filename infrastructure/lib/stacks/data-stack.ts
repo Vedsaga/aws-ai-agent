@@ -38,7 +38,10 @@ export class DataStack extends cdk.Stack {
     });
 
     // Create database credentials secret
-    const dbUsername = process.env.DB_USERNAME || 'dbadmin';  // Changed from 'admin' (reserved word)
+    const dbUsername = process.env.DB_USERNAME;
+    if (!dbUsername) {
+      throw new Error('DB_USERNAME environment variable is required for database setup');
+    }
     this.databaseSecret = new secretsmanager.Secret(this, 'DatabaseSecret', {
       secretName: `${id}-DatabaseCredentials`,
       generateSecretString: {

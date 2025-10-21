@@ -98,10 +98,16 @@
 
     <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1000.0.min.js"></script>
     <script>
-        const API_URL = 'https://vluqfpl2zi.execute-api.us-east-1.amazonaws.com/v1';
-        const USER_POOL_ID = 'us-east-1_7QZ7Y6Gbl';
-        const CLIENT_ID = '6gobbpage9af3nd7ahm3lchkct';
-        const REGION = 'us-east-1';
+        // Load configuration from window.ENV (set by config.js)
+        // For local testing, you can set these in browser console or create a config.js file
+        const API_URL = window.ENV?.API_BASE_URL || prompt('Enter API_BASE_URL:');
+        const USER_POOL_ID = window.ENV?.COGNITO_USER_POOL_ID || prompt('Enter COGNITO_USER_POOL_ID:');
+        const CLIENT_ID = window.ENV?.COGNITO_CLIENT_ID || prompt('Enter COGNITO_CLIENT_ID:');
+        const REGION = window.ENV?.AWS_REGION || 'us-east-1';
+        
+        if (!API_URL || !USER_POOL_ID || !CLIENT_ID) {
+            alert('Missing configuration! Please set window.ENV or provide values when prompted.');
+        }
         
         AWS.config.region = REGION;
         const cognito = new AWS.CognitoIdentityServiceProvider();

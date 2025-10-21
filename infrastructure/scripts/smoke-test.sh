@@ -234,10 +234,19 @@ test_authentication() {
         return
     fi
     
+    # Get credentials from environment
+    TEST_USERNAME="${TEST_USERNAME:-testuser}"
+    TEST_PASSWORD="${TEST_PASSWORD}"
+    
+    if [ -z "$TEST_PASSWORD" ]; then
+        log_error "TEST_PASSWORD not set in .env file"
+        return
+    fi
+    
     TOKEN=$(aws cognito-idp initiate-auth \
         --auth-flow USER_PASSWORD_AUTH \
         --client-id $CLIENT_ID \
-        --auth-parameters USERNAME=testuser,PASSWORD=TestPassword123! \
+        --auth-parameters USERNAME=$TEST_USERNAME,PASSWORD="$TEST_PASSWORD" \
         --region $AWS_REGION \
         --query 'AuthenticationResult.IdToken' \
         --output text 2>/dev/null || echo "")
@@ -348,8 +357,8 @@ display_summary() {
         log_info "Your deployment is ready to use!"
         echo ""
         echo "API URL: $API_URL"
-        echo "Test User: testuser"
-        echo "Password: TestPassword123!"
+        echo "Test User: ${TEST_USERNAME:-testuser}"
+        echo "Password: (set in .env file)"
         echo ""
         return 0
     else

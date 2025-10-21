@@ -222,6 +222,15 @@ initialize_opensearch() {
 create_test_user() {
     log_info "Creating test user..."
     
+    # Get credentials from environment
+    TEST_USERNAME="${TEST_USERNAME:-testuser}"
+    TEST_PASSWORD="${TEST_PASSWORD}"
+    
+    if [ -z "$TEST_PASSWORD" ]; then
+        log_warning "TEST_PASSWORD not set in .env file, skipping test user creation"
+        return 0
+    fi
+    
     # Get User Pool ID
     USER_POOL_ID=$(aws cloudformation describe-stacks \
         --stack-name MultiAgentOrchestration-${STAGE}-Auth \
@@ -237,14 +246,14 @@ create_test_user() {
     # Check if user already exists
     if aws cognito-idp admin-get-user \
         --user-pool-id $USER_POOL_ID \
-        --username testuser \
+        --username $TEST_USERNAME \
         --region $AWS_REGION &> /dev/null; then
-        log_warning "Test user 'testuser' already exists"
+        log_warning "Test user '$TEST_USERNAME' already exists"
     else
         # Create test user
         aws cognito-idp admin-create-user \
             --user-pool-id $USER_POOL_ID \
-            --username testuser \
+            --username $TEST_USERNAME \
             --user-attributes \
                 Name=email,Value=test@example.com \
                 Name=custom:tenant_id,Value=test-tenant-123 \
@@ -254,12 +263,12 @@ create_test_user() {
         # Set permanent password
         aws cognito-idp admin-set-user-password \
             --user-pool-id $USER_POOL_ID \
-            --username testuser \
-            --password TestPassword123! \
+            --username $TEST_USERNAME \
+            --password "$TEST_PASSWORD" \
             --permanent \
             --region $AWS_REGION > /dev/null
         
-        log_success "Test user created: testuser / TestPassword123!"
+        log_success "Test user created: $TEST_USERNAME (password in .env)"
     fi
 }
 

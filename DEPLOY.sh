@@ -19,10 +19,19 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# Configuration
-REGION="us-east-1"
-STAGE="dev"
-PROJECT_NAME="MultiAgentOrchestration"
+# Load configuration from config file or environment variables
+if [ -f "config/deployment.json" ]; then
+    log_info "Loading configuration from config/deployment.json"
+    REGION=$(jq -r '.region' config/deployment.json)
+    STAGE=$(jq -r '.stage' config/deployment.json)
+    PROJECT_NAME=$(jq -r '.projectName' config/deployment.json)
+else
+    log_warning "config/deployment.json not found, using environment variables or defaults"
+    REGION="${AWS_REGION:-us-east-1}"
+    STAGE="${DEPLOYMENT_STAGE:-dev}"
+    PROJECT_NAME="${PROJECT_NAME:-MultiAgentOrchestration}"
+fi
+
 STACK_PREFIX="${PROJECT_NAME}-${STAGE}"
 
 # Function names
@@ -277,20 +286,29 @@ test_apis() {
         return 0
     fi
     
+    # Get test credentials from environment
+    TEST_USERNAME="${TEST_USERNAME:-testuser}"
+    TEST_PASSWORD="${TEST_PASSWORD}"
+    
+    if [ -z "$TEST_PASSWORD" ]; then
+        log_warning "TEST_PASSWORD not set, skipping API tests"
+        return 0
+    fi
+    
     # Ensure test user exists
-    if ! aws cognito-idp admin-get-user --user-pool-id $USER_POOL_ID --username testuser --region $REGION &> /dev/null; then
+    if ! aws cognito-idp admin-get-user --user-pool-id $USER_POOL_ID --username $TEST_USERNAME --region $REGION &> /dev/null; then
         log_info "Creating test user..."
         aws cognito-idp admin-create-user \
             --user-pool-id $USER_POOL_ID \
-            --username testuser \
+            --username $TEST_USERNAME \
             --user-attributes Name=email,Value=test@example.com \
             --temporary-password TempPassword123! \
             --region $REGION > /dev/null 2>&1
         
         aws cognito-idp admin-set-user-password \
             --user-pool-id $USER_POOL_ID \
-            --username testuser \
-            --password TestPassword123! \
+            --username $TEST_USERNAME \
+            --password "$TEST_PASSWORD" \
             --permanent \
             --region $REGION > /dev/null 2>&1
     fi
@@ -299,7 +317,7 @@ test_apis() {
     TOKEN=$(aws cognito-idp initiate-auth \
         --auth-flow USER_PASSWORD_AUTH \
         --client-id $CLIENT_ID \
-        --auth-parameters USERNAME=testuser,PASSWORD=TestPassword123! \
+        --auth-parameters USERNAME=$TEST_USERNAME,PASSWORD="$TEST_PASSWORD" \
         --region $REGION \
         --query 'AuthenticationResult.IdToken' \
         --output text 2>/dev/null || echo "")
@@ -371,8 +389,8 @@ display_summary() {
     fi
     echo ""
     echo "Test Credentials:"
-    echo "  Username: testuser"
-    echo "  Password: TestPassword123!"
+    echo "  Username: ${TEST_USERNAME:-testuser}"
+    echo "  Password: (set in .env file)"
     echo ""
     if [ ! -z "$USER_POOL_ID" ]; then
         echo "Cognito:"

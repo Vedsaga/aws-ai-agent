@@ -81,8 +81,12 @@ def create_embedding(text: str) -> List[float]:
             "inputText": text
         }
         
+        # Use environment variable or default
+        embedding_model = os.environ.get('BEDROCK_EMBEDDING_MODEL', 
+                                        'amazon.titan-embed-text-v1')
+        
         response = bedrock.invoke_model(
-            modelId="amazon.titan-embed-text-v1",
+            modelId=embedding_model,
             body=json.dumps(request_body)
         )
         

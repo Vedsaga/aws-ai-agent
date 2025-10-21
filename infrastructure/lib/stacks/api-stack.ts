@@ -76,6 +76,8 @@ export class ApiStack extends cdk.Stack {
       memorySize: 512,
       environment: {
         INCIDENTS_TABLE: `${this.stackName.replace('-Api', '-Data')}-Incidents`,
+        BEDROCK_DEFAULT_MODEL: process.env.BEDROCK_DEFAULT_MODEL || 'anthropic.claude-3-sonnet-20240229-v1:0',
+        BEDROCK_AGENT_MODEL: process.env.BEDROCK_AGENT_MODEL || 'amazon.nova-micro-v1:0',
       },
       description: 'Handles data ingestion requests',
     });
@@ -89,6 +91,8 @@ export class ApiStack extends cdk.Stack {
       memorySize: 512,
       environment: {
         QUERIES_TABLE: `${this.stackName.replace('-Api', '-Data')}-Queries`,
+        BEDROCK_DEFAULT_MODEL: process.env.BEDROCK_DEFAULT_MODEL || 'anthropic.claude-3-sonnet-20240229-v1:0',
+        BEDROCK_AGENT_MODEL: process.env.BEDROCK_AGENT_MODEL || 'amazon.nova-micro-v1:0',
       },
       description: 'Handles query requests',
     });

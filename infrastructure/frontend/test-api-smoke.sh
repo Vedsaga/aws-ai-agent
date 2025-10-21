@@ -3,7 +3,14 @@
 # API Smoke Test Script
 # Tests basic connectivity to the backend API
 
-API_URL="https://vluqfpl2zi.execute-api.us-east-1.amazonaws.com/v1"
+# Load API URL from environment
+API_URL="${API_BASE_URL}"
+
+if [ -z "$API_URL" ]; then
+    echo "❌ ERROR: API_BASE_URL environment variable not set"
+    echo "Please set it in your .env file or export it"
+    exit 1
+fi
 
 echo "========================================="
 echo "API Smoke Test"

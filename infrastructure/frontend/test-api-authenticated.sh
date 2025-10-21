@@ -5,12 +5,30 @@
 
 set -e
 
-API_URL="https://vluqfpl2zi.execute-api.us-east-1.amazonaws.com/v1"
-USER_POOL_ID="us-east-1_7QZ7Y6Gbl"
-CLIENT_ID="6gobbpage9af3nd7ahm3lchkct"
-USERNAME="testuser"
-PASSWORD="TestPassword123!"
-REGION="us-east-1"
+# Load environment variables from .env file if it exists
+if [ -f "../../.env" ]; then
+    echo "Loading environment variables from .env file..."
+    export $(cat ../../.env | grep -v '^#' | xargs)
+elif [ -f ".env" ]; then
+    echo "Loading environment variables from .env file..."
+    export $(cat .env | grep -v '^#' | xargs)
+fi
+
+# Use environment variables with validation
+API_URL="${API_BASE_URL}"
+USER_POOL_ID="${COGNITO_USER_POOL_ID}"
+CLIENT_ID="${COGNITO_CLIENT_ID}"
+USERNAME="${TEST_USERNAME}"
+PASSWORD="${TEST_PASSWORD}"
+REGION="${AWS_REGION:-us-east-1}"
+
+# Validate required variables
+if [ -z "$API_URL" ] || [ -z "$USER_POOL_ID" ] || [ -z "$CLIENT_ID" ] || [ -z "$USERNAME" ] || [ -z "$PASSWORD" ]; then
+    echo "ERROR: Missing required environment variables!"
+    echo "Please set: API_BASE_URL, COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID, TEST_USERNAME, TEST_PASSWORD"
+    echo "You can copy .env.example to .env and fill in the values"
+    exit 1
+fi
 
 echo "========================================="
 echo "Authenticated API Test Suite"

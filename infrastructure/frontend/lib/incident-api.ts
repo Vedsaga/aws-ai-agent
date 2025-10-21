@@ -1,6 +1,11 @@
 // Incident API Client - Submit reports and poll status
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://vluqfpl2zi.execute-api.us-east-1.amazonaws.com/v1';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+
+if (!API_BASE_URL) {
+  console.error('ERROR: NEXT_PUBLIC_API_URL environment variable not set');
+  console.error('Please set it in your .env.local file');
+}
 
 export interface IncidentSubmission {
   domain_id: string;

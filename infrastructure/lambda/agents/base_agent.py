@@ -128,8 +128,12 @@ class BaseAgent(ABC):
             if self.system_prompt:
                 request_body["system"] = self.system_prompt
             
+            # Use model ID from environment variable or default
+            model_id = os.environ.get('BEDROCK_DEFAULT_MODEL', 
+                                      'anthropic.claude-3-sonnet-20240229-v1:0')
+            
             response = self.bedrock.invoke_model(
-                modelId="anthropic.claude-3-sonnet-20240229-v1:0",
+                modelId=model_id,
                 body=json.dumps(request_body)
             )
             

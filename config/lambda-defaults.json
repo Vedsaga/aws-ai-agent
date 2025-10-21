@@ -1,0 +1,32 @@
+{
+  "runtime": "python3.11",
+  "timeout": 30,
+  "memorySize": 512,
+  "architecture": "x86_64",
+  "handlers": {
+    "orchestrator": {
+      "timeout": 300,
+      "memorySize": 1024
+    },
+    "ingest": {
+      "timeout": 30,
+      "memorySize": 512
+    },
+    "query": {
+      "timeout": 30,
+      "memorySize": 512
+    },
+    "config": {
+      "timeout": 30,
+      "memorySize": 512
+    },
+    "agent": {
+      "timeout": 60,
+      "memorySize": 512
+    }
+  },
+  "environment": {
+    "LOG_LEVEL": "INFO",
+    "POWERTOOLS_SERVICE_NAME": "multi-agent-orchestration"
+  }
+}

@@ -48,8 +48,9 @@ INCIDENTS_TABLE = os.environ.get(
 )
 
 # Model configurations - use lighter models for individual agents, complex for orchestration
-AGENT_MODEL_ID = "amazon.nova-micro-v1:0"  # Fast, cheap for individual agents
-ORCHESTRATOR_MODEL_ID = "amazon.nova-pro-v1:0"  # Complex reasoning for orchestration
+# Load from environment variables with fallbacks
+AGENT_MODEL_ID = os.environ.get('BEDROCK_AGENT_MODEL', 'amazon.nova-micro-v1:0')
+ORCHESTRATOR_MODEL_ID = os.environ.get('BEDROCK_ORCHESTRATOR_MODEL', 'amazon.nova-pro-v1:0')
 GEO_AGENT_USE_LOCATION_SERVICE = True  # Use Amazon Location Service for geocoding
 
 # Initialize tables
@@ -534,8 +535,9 @@ def execute_agent(
 
         user_prompt += "Please analyze the text and return your response as valid JSON."
 
-        # Call Bedrock
-        model_id = "anthropic.claude-3-haiku-20240307-v1:0"
+        # Call Bedrock - use environment variable or default
+        model_id = os.environ.get('BEDROCK_DEFAULT_MODEL', 
+                                  'anthropic.claude-3-haiku-20240307-v1:0')
 
         request_body = {
             "anthropic_version": "bedrock-2023-05-31",

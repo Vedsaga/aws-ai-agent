@@ -8,14 +8,22 @@ import requests
 import json
 import boto3
 import time
+import os
 from datetime import datetime
 
-# Configuration
-API_BASE_URL = "https://vluqfpl2zi.execute-api.us-east-1.amazonaws.com/v1"
-COGNITO_CLIENT_ID = "6gobbpage9af3nd7ahm3lchkct"
-COGNITO_REGION = "us-east-1"
-USERNAME = "testuser"
-PASSWORD = "TestPassword123!"
+# Configuration - Load from environment variables
+API_BASE_URL = os.environ.get("API_BASE_URL")
+COGNITO_CLIENT_ID = os.environ.get("COGNITO_CLIENT_ID")
+COGNITO_REGION = os.environ.get("AWS_REGION", "us-east-1")
+USERNAME = os.environ.get("TEST_USERNAME")
+PASSWORD = os.environ.get("TEST_PASSWORD")
+
+# Validate required environment variables
+if not all([API_BASE_URL, COGNITO_CLIENT_ID, USERNAME, PASSWORD]):
+    print("ERROR: Missing required environment variables!")
+    print("Please set: API_BASE_URL, COGNITO_CLIENT_ID, TEST_USERNAME, TEST_PASSWORD")
+    print("You can copy .env.example to .env and fill in the values")
+    exit(1)
 
 class Colors:
     GREEN = '\033[92m'

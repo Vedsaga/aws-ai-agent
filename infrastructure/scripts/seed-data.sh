@@ -77,18 +77,27 @@ get_stack_outputs() {
 
 # Get JWT token
 get_jwt_token() {
-    log_info "Getting JWT token for testuser..."
+    log_info "Getting JWT token..."
+    
+    # Get credentials from environment
+    TEST_USERNAME="${TEST_USERNAME:-testuser}"
+    TEST_PASSWORD="${TEST_PASSWORD}"
+    
+    if [ -z "$TEST_PASSWORD" ]; then
+        log_error "TEST_PASSWORD environment variable not set"
+        exit 1
+    fi
     
     TOKEN=$(aws cognito-idp initiate-auth \
         --auth-flow USER_PASSWORD_AUTH \
         --client-id $CLIENT_ID \
-        --auth-parameters USERNAME=testuser,PASSWORD=TestPassword123! \
+        --auth-parameters USERNAME=$TEST_USERNAME,PASSWORD="$TEST_PASSWORD" \
         --region $AWS_REGION \
         --query 'AuthenticationResult.IdToken' \
         --output text 2>/dev/null || echo "")
     
     if [ -z "$TOKEN" ]; then
-        log_error "Failed to get JWT token. Ensure testuser exists with password TestPassword123!"
+        log_error "Failed to get JWT token. Check credentials in .env file"
         exit 1
     fi
     
@@ -295,7 +304,7 @@ main() {
     log_info "You can now:"
     echo "  1. Run smoke tests: ./scripts/smoke-test.sh"
     echo "  2. Query the API at: ${API_URL}"
-    echo "  3. Test with username: testuser, password: TestPassword123!"
+    echo "  3. Test with credentials from .env file"
     echo ""
 }
 

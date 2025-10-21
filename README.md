@@ -14,9 +14,26 @@ This system enables users to submit unstructured reports (text + images) which a
 
 ## Quick Start
 
+### 0. Setup Environment (First Time Only)
+
+```bash
+# Run interactive setup script
+./setup-env.sh
+
+# Or manually create .env from template
+cp .env.example .env
+# Edit .env and fill in your values
+```
+
+**Important:** Never commit `.env` or `infrastructure/frontend/config.js` to version control!
+
 ### 1. Deploy Backend (5 minutes)
 
 ```bash
+# Export environment variables
+export $(cat .env | grep -v '^#' | xargs)
+
+# Deploy
 ./DEPLOY.sh
 ```
 
@@ -24,6 +41,7 @@ This system enables users to submit unstructured reports (text + images) which a
 
 ```bash
 cd infrastructure
+export $(cat ../.env | grep -v '^#' | xargs)
 python3 TEST.py
 ```
 
@@ -440,3 +458,48 @@ aws cognito-idp admin-set-user-password \
 **Last Updated:** October 21, 2025
 
 **Ready to deploy? Run `./DEPLOY.sh` now!**
+
+
+---
+
+## 🔒 Security
+
+This project follows security best practices:
+
+- ✅ **No credentials in source code** - All sensitive data in environment variables
+- ✅ **Configuration management** - Non-sensitive config in `config/` directory
+- ✅ **Git protection** - `.env` and `config.js` excluded from version control
+- ✅ **Environment validation** - Scripts fail early if required variables missing
+
+### Security Documentation
+
+- **[SECURITY_ANALYSIS.md](SECURITY_ANALYSIS.md)** - Comprehensive security audit and recommendations
+- **[SECURITY_IMPROVEMENTS.md](SECURITY_IMPROVEMENTS.md)** - Applied fixes and usage guide
+- **[.env.example](.env.example)** - Template for environment variables
+- **[config/README.md](config/README.md)** - Configuration management guide
+
+### Setup Security
+
+1. **Never commit sensitive files:**
+   - `.env` - Contains credentials
+   - `infrastructure/frontend/config.js` - Contains API endpoints
+   - Any files with passwords or API keys
+
+2. **Use the setup script:**
+   ```bash
+   ./setup-env.sh
+   ```
+
+3. **Verify .gitignore:**
+   ```bash
+   git check-ignore .env
+   # Should output: .env
+   ```
+
+4. **For production:**
+   - Use AWS Secrets Manager for credentials
+   - Use AWS Systems Manager Parameter Store for configuration
+   - Implement credential rotation policies
+   - Enable CloudTrail for audit logging
+
+---

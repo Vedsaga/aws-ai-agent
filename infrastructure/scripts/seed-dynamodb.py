@@ -5,12 +5,39 @@ Seed DynamoDB with configuration data
 import json
 import boto3
 import sys
+import os
 from datetime import datetime
 import uuid
 
+# Load configuration
+def load_config():
+    """Load configuration from file or environment variables"""
+    config_file = 'config/deployment.json'
+    
+    # Try to load from config file
+    if os.path.exists(config_file):
+        with open(config_file, 'r') as f:
+            config = json.load(f)
+            region = config.get('region', 'us-east-1')
+            project_name = config.get('projectName', 'MultiAgentOrchestration')
+            stage = config.get('stage', 'dev')
+    else:
+        # Fall back to environment variables
+        region = os.environ.get('AWS_REGION', 'us-east-1')
+        project_name = os.environ.get('PROJECT_NAME', 'MultiAgentOrchestration')
+        stage = os.environ.get('DEPLOYMENT_STAGE', 'dev')
+    
+    table_name = os.environ.get('CONFIGURATIONS_TABLE', 
+                                f'{project_name}-{stage}-Data-Configurations')
+    
+    return region, table_name
+
 # Initialize AWS clients
-dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
-table_name = 'MultiAgentOrchestration-dev-Data-Configurations'
+region, table_name = load_config()
+dynamodb = boto3.resource('dynamodb', region_name=region)
+
+print(f"Using region: {region}")
+print(f"Using table: {table_name}")
 
 def seed_data():
     """Seed configuration data into DynamoDB"""
