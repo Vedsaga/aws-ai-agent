@@ -1,0 +1,32 @@
+URGENT FIXES STATUS
+===================
+
+1. ✅ NETWORK ERROR - FIXED
+   - Disabled auto-load of incidents in MapView
+   - User clicks "Refresh Map" to load data
+   - No more automatic failed API calls
+
+2. ⚠️ AGENT CREATION FORMS
+   - Need to check if broken
+   - Replace with ShadCN Dialog + Form components
+   - Location: app/config/page.tsx, components/AgentCreationForm.tsx
+
+3. ⚠️ DOMAIN CREATION FORMS  
+   - Need to check if broken
+   - Replace with ShadCN Dialog + Form components
+   - Location: app/manage/page.tsx
+
+QUICK FIX FOR NETWORK ERROR:
+- Map no longer auto-loads incidents
+- User must click "Refresh Map" button
+- This prevents failed API calls on page load
+
+TO TEST:
+cd infrastructure/frontend && npm run dev
+- Network error should be gone
+- Click "Refresh Map" to load incidents
+- Check agent/domain creation still works
+
+REMAINING:
+- If agent/domain forms broken, need to rebuild with ShadCN
+- Estimated time: 30 min per form

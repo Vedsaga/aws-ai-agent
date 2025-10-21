@@ -1,31 +1,42 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import Image from 'next/image';
-import { submitReport } from '@/lib/api-client';
-import { subscribeToJobStatus, StatusUpdate } from '@/lib/appsync-client';
-import { getStoredUser } from '@/lib/auth';
-import { showValidationErrorToast, showSuccessToast, showErrorToast } from '@/lib/toast-utils';
-import { useAppContext } from '@/contexts/AppContext';
-import DomainSelector from './DomainSelector';
-import ExecutionStatusPanel, { AgentStatus } from './ExecutionStatusPanel';
-import ClarificationDialog, { LowConfidenceField } from './ClarificationDialog';
-import { extractLowConfidenceFields, formatEnhancedText } from '@/lib/confidence-utils';
+import { useState, useEffect } from "react";
+import Image from "next/image";
+import { submitReport } from "@/lib/api-client";
+import { subscribeToJobStatus, StatusUpdate } from "@/lib/appsync-client";
+import { getStoredUser } from "@/lib/auth";
+import {
+  showValidationErrorToast,
+  showSuccessToast,
+  showErrorToast,
+} from "@/lib/toast-utils";
+import { useAppContext } from "@/contexts/AppContext";
+import DomainSelector from "./DomainSelector";
+import ExecutionStatusPanel, { AgentStatus } from "./ExecutionStatusPanel";
+import ClarificationDialog, { LowConfidenceField } from "./ClarificationDialog";
+import {
+  extractLowConfidenceFields,
+  formatEnhancedText,
+} from "@/lib/confidence-utils";
 
 export default function IngestionPanel() {
   const { selectedDomain, setSelectedDomain, addChatMessage } = useAppContext();
-  const [reportText, setReportText] = useState('');
-  const [originalReportText, setOriginalReportText] = useState('');
+  const [reportText, setReportText] = useState("");
+  const [originalReportText, setOriginalReportText] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusMessages, setStatusMessages] = useState<string[]>([]);
   const [jobId, setJobId] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [agentStatuses, setAgentStatuses] = useState<Record<string, AgentStatus>>({});
+  const [agentStatuses, setAgentStatuses] = useState<
+    Record<string, AgentStatus>
+  >({});
   const [agentNames, setAgentNames] = useState<string[]>([]);
   const [showStatusPanel, setShowStatusPanel] = useState(false);
   const [showClarification, setShowClarification] = useState(false);
-  const [lowConfidenceFields, setLowConfidenceFields] = useState<LowConfidenceField[]>([]);
+  const [lowConfidenceFields, setLowConfidenceFields] = useState<
+    LowConfidenceField[]
+  >([]);
   const [clarificationRound, setClarificationRound] = useState(0);
   const [agentOutputs, setAgentOutputs] = useState<any[]>([]);
 
@@ -45,21 +56,21 @@ export default function IngestionPanel() {
       (update: StatusUpdate) => {
         const message = `${update.agentName}: ${update.message}`;
         setStatusMessages((prev) => [...prev, message]);
-        
+
         // Update agent status
         const newStatus: AgentStatus = {
           agentName: update.agentName,
-          status: update.status as AgentStatus['status'],
+          status: update.status as AgentStatus["status"],
           message: update.message,
           confidence: update.confidence,
           timestamp: update.timestamp,
         };
-        
+
         setAgentStatuses((prev) => ({
           ...prev,
           [update.agentName]: newStatus,
         }));
-        
+
         // Add agent to list if not already present
         setAgentNames((prev) => {
           if (!prev.includes(update.agentName)) {
@@ -67,9 +78,9 @@ export default function IngestionPanel() {
           }
           return prev;
         });
-        
+
         // Collect agent outputs for confidence checking
-        if (update.status === 'complete' && update.confidence !== undefined) {
+        if (update.status === "complete" && update.confidence !== undefined) {
           setAgentOutputs((prev) => [
             ...prev,
             {
@@ -80,11 +91,11 @@ export default function IngestionPanel() {
             },
           ]);
         }
-        
+
         // Add to chat history
         addChatMessage(selectedDomain, {
           id: `${Date.now()}-${Math.random()}`,
-          type: 'agent',
+          type: "agent",
           content: message,
           timestamp: new Date().toISOString(),
           metadata: {
@@ -94,22 +105,23 @@ export default function IngestionPanel() {
             confidence: update.confidence,
           },
         });
-        
-        if (update.status === 'complete') {
+
+        if (update.status === "complete") {
           // Check if all agents are complete
           const updatedStatuses = {
             ...agentStatuses,
             [update.agentName]: newStatus,
           };
-          
+
           const allComplete = Object.values(updatedStatuses).every(
-            (status) => status.status === 'complete' || status.status === 'error'
+            (status) =>
+              status.status === "complete" || status.status === "error",
           );
-          
+
           if (allComplete) {
             setLoading(false);
             setShowStatusPanel(false);
-            
+
             // Check for low confidence fields
             const currentOutputs = [...agentOutputs];
             if (update.confidence !== undefined) {
@@ -120,28 +132,34 @@ export default function IngestionPanel() {
                 },
               });
             }
-            
-            const lowConfFields = extractLowConfidenceFields(currentOutputs, 0.9);
-            
+
+            const lowConfFields = extractLowConfidenceFields(
+              currentOutputs,
+              0.9,
+            );
+
             // Only show clarification if we haven't exceeded max rounds
             if (lowConfFields.length > 0 && clarificationRound < 3) {
               setLowConfidenceFields(lowConfFields);
               setShowClarification(true);
             } else {
               setSuccess(true);
-              showSuccessToast('Processing complete', 'Your report has been processed successfully');
+              showSuccessToast(
+                "Processing complete",
+                "Your report has been processed successfully",
+              );
             }
           }
-        } else if (update.status === 'error') {
+        } else if (update.status === "error") {
           setLoading(false);
           showErrorToast(`${update.agentName} failed`, update.message);
         }
       },
       (error) => {
-        console.error('Status subscription error:', error);
-        showErrorToast('Connection error', 'Lost connection to status updates');
+        console.error("Status subscription error:", error);
+        showErrorToast("Connection error", "Lost connection to status updates");
         setShowStatusPanel(false);
-      }
+      },
     );
 
     return () => {
@@ -159,23 +177,28 @@ export default function IngestionPanel() {
     const newImages: string[] = [];
     const errors: string[] = [];
 
-    Array.from(files).slice(0, maxImages - images.length).forEach((file) => {
-      if (file.size > maxSize) {
-        errors.push(`Image ${file.name} exceeds 5MB limit`);
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          newImages.push(event.target.result as string);
-          if (newImages.length === Math.min(files.length, maxImages - images.length)) {
-            setImages((prev) => [...prev, ...newImages]);
-          }
+    Array.from(files)
+      .slice(0, maxImages - images.length)
+      .forEach((file) => {
+        if (file.size > maxSize) {
+          errors.push(`Image ${file.name} exceeds 5MB limit`);
+          return;
         }
-      };
-      reader.readAsDataURL(file);
-    });
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          if (event.target?.result) {
+            newImages.push(event.target.result as string);
+            if (
+              newImages.length ===
+              Math.min(files.length, maxImages - images.length)
+            ) {
+              setImages((prev) => [...prev, ...newImages]);
+            }
+          }
+        };
+        reader.readAsDataURL(file);
+      });
 
     if (errors.length > 0) {
       showValidationErrorToast(errors);
@@ -188,16 +211,16 @@ export default function IngestionPanel() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validation
     const errors: string[] = [];
     if (!selectedDomain) {
-      errors.push('Please select a domain');
+      errors.push("Please select a domain");
     }
     if (!reportText.trim()) {
-      errors.push('Report text is required');
+      errors.push("Report text is required");
     }
-    
+
     if (errors.length > 0) {
       showValidationErrorToast(errors);
       return;
@@ -220,41 +243,45 @@ export default function IngestionPanel() {
     // Add user message to chat history
     addChatMessage(selectedDomain, {
       id: `${Date.now()}-${Math.random()}`,
-      type: 'user',
+      type: "user",
       content: reportText,
       timestamp: new Date().toISOString(),
     });
 
     const response = await submitReport(selectedDomain, reportText, images);
-    
+
     if (response.data?.job_id) {
       setJobId(response.data.job_id);
-      setStatusMessages(['Report submitted. Processing...']);
+      setStatusMessages(["Report submitted. Processing..."]);
       setAgentStatuses({});
       setAgentNames([]);
-      showSuccessToast('Report submitted', 'Your report is being processed');
+      showSuccessToast("Report submitted", "Your report is being processed");
     } else {
       // Error toast is already shown by API client
       setLoading(false);
     }
   };
 
-  const handleClarificationSubmit = (clarifications: Record<string, string>) => {
+  const handleClarificationSubmit = (
+    clarifications: Record<string, string>,
+  ) => {
     // Append clarification to original text
     const enhancedText = formatEnhancedText(originalReportText, clarifications);
-    
+
     // Increment clarification round
     setClarificationRound((prev) => prev + 1);
-    
+
     // Update report text and re-submit
     setReportText(enhancedText);
     setShowClarification(false);
-    
+
     // Re-submit with enhanced context
     setTimeout(() => {
-      const form = document.querySelector('form');
+      const form = document.querySelector("form");
       if (form) {
-        form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+        form.dispatchEvent(
+          new Event("submit", { cancelable: true, bubbles: true }),
+        );
       }
     }, 100);
   };
@@ -262,12 +289,15 @@ export default function IngestionPanel() {
   const handleClarificationSkip = () => {
     setShowClarification(false);
     setSuccess(true);
-    showSuccessToast('Processing complete', 'Your report has been processed (with low confidence)');
+    showSuccessToast(
+      "Processing complete",
+      "Your report has been processed (with low confidence)",
+    );
   };
 
   const handleReset = () => {
-    setReportText('');
-    setOriginalReportText('');
+    setReportText("");
+    setOriginalReportText("");
     setImages([]);
     setStatusMessages([]);
     setJobId(null);
@@ -285,11 +315,17 @@ export default function IngestionPanel() {
   return (
     <div className="h-full flex flex-col bg-card p-4 overflow-hidden">
       <h2 className="text-xl font-bold mb-4 text-foreground">Submit Report</h2>
-      
-      <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden">
+
+      <form
+        onSubmit={handleSubmit}
+        className="flex-1 flex flex-col overflow-hidden"
+      >
         {/* Domain Selection */}
         <div className="mb-4">
-          <label htmlFor="domain" className="block text-sm font-medium text-foreground mb-1">
+          <label
+            htmlFor="domain"
+            className="block text-sm font-medium text-foreground mb-1"
+          >
             Domain
           </label>
           <DomainSelector
@@ -300,7 +336,10 @@ export default function IngestionPanel() {
 
         {/* Report Text */}
         <div className="mb-4 flex-1 flex flex-col min-h-0">
-          <label htmlFor="report" className="block text-sm font-medium text-foreground mb-1">
+          <label
+            htmlFor="report"
+            className="block text-sm font-medium text-foreground mb-1"
+          >
             Report Description
           </label>
           <textarea
@@ -326,7 +365,7 @@ export default function IngestionPanel() {
             disabled={loading || images.length >= 5}
             className="w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
           />
-          
+
           {images.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-2">
               {images.map((img, index) => (
@@ -401,9 +440,9 @@ export default function IngestionPanel() {
             disabled={loading || !selectedDomain || !reportText.trim()}
             className="flex-1 py-2 px-4 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Processing...' : 'Submit Report'}
+            {loading ? "Processing..." : "Submit Report"}
           </button>
-          
+
           {(success || statusMessages.length > 0) && (
             <button
               type="button"

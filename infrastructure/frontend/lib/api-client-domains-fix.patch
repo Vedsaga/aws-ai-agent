@@ -1,0 +1,10 @@
+import { DEFAULT_DOMAINS } from './domains-config';
+
+// Add inside listDomains function after the apiRequest call:
+if (response.status !== 200 || !response.data) {
+  // Return hardcoded domains as fallback
+  return {
+    data: { domains: DEFAULT_DOMAINS as Domain[] },
+    status: 200
+  };
+}

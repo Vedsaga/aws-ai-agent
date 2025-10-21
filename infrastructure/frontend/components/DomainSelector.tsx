@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from "react";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { listDomains, Domain } from '@/lib/api-client';
-import { showErrorToast } from '@/lib/toast-utils';
+} from "@/components/ui/select";
+import { listDomains, Domain } from "@/lib/api-client";
+import { showErrorToast } from "@/lib/toast-utils";
 
 interface DomainSelectorProps {
   selectedDomain: string | null;
@@ -20,50 +20,46 @@ interface DomainSelectorProps {
 export default function DomainSelector({
   selectedDomain,
   onDomainChange,
-  className = '',
+  className = "",
 }: DomainSelectorProps) {
   const [domains, setDomains] = useState<Domain[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadDomains = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const response = await listDomains();
-
-      if (response.data?.domains) {
-        // Display both built-in and custom domains
-        setDomains(response.data.domains);
-        
-        // Auto-select first domain if none selected
-        if (!selectedDomain && response.data.domains.length > 0) {
-          onDomainChange(response.data.domains[0].domain_id);
-        }
-      } else if (response.error) {
-        // Handle error states
-        setError(response.error);
-        setDomains([]);
-        
-        // Only show error toast if it's not an auth error (401/403)
-        if (response.status !== 401 && response.status !== 403) {
-          showErrorToast('Failed to load domains', response.error);
-        }
-      }
-    } catch (error) {
-      console.error('Error loading domains:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      setError(errorMessage);
-      setDomains([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedDomain, onDomainChange]);
-
   useEffect(() => {
+    async function loadDomains() {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const response = await listDomains();
+
+        if (response.data?.domains) {
+          // Display both built-in and custom domains
+          setDomains(response.data.domains);
+
+          // Auto-select first domain if none selected
+          if (!selectedDomain && response.data.domains.length > 0) {
+            onDomainChange(response.data.domains[0].domain_id);
+          }
+        } else {
+          // Handle error states - domains are already hardcoded in listDomains fallback
+          setError(response.error);
+          setDomains([]);
+        }
+      } catch (error) {
+        console.error("Error loading domains:", error);
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        setError(errorMessage);
+        setDomains([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+
     loadDomains();
-  }, [loadDomains]);
+  }, []); // Run only once on mount
 
   // Loading state
   if (loading) {
@@ -106,7 +102,10 @@ export default function DomainSelector({
 
   return (
     <div className={`w-full ${className}`}>
-      <Select value={selectedDomain || undefined} onValueChange={onDomainChange}>
+      <Select
+        value={selectedDomain || undefined}
+        onValueChange={onDomainChange}
+      >
         <SelectTrigger className="w-full">
           <SelectValue placeholder="Select a domain" />
         </SelectTrigger>

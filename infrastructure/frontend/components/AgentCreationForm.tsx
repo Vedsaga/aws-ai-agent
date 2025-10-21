@@ -190,7 +190,7 @@ export default function AgentCreationForm({ onSuccess }: { onSuccess?: () => voi
   };
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md max-w-4xl mx-auto">
+    <div className="bg-card p-6 rounded-lg shadow-md border border-border max-w-4xl mx-auto">
       <h2 className="text-2xl font-bold mb-6">Create Custom Agent</h2>
       
       <form onSubmit={handleSubmit} className="space-y-6">

@@ -4,12 +4,12 @@ import { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { fetchIncidents } from '@/lib/api-client';
-import { 
-  createCustomMarker, 
-  getIncidentCoordinates, 
+import {
+  createCustomMarker,
+  getIncidentCoordinates,
   getGeometryType,
   renderGeometry,
-  type Incident 
+  type Incident
 } from '@/lib/map-utils';
 import { getCategoryColors } from '@/lib/category-config';
 import { createDetailedPopup } from '@/lib/popup-utils';
@@ -45,14 +45,70 @@ export default function MapView() {
     // Add fullscreen control
     map.current.addControl(new mapboxgl.FullscreenControl(), 'top-right');
 
-    // Don't load incidents automatically on mount
-    // User can click "Refresh Map" button to load incidents
-    // This prevents network errors on initial page load
+    // Load incidents automatically on mount
+    // loadIncidents(); // Disabled auto-load to prevent network errors
 
     return () => {
       map.current?.remove();
     };
   }, []);
+
+  // Auto-zoom to fit all incidents
+  const autoZoomToIncidents = (incidentList: Incident[]) => {
+    if (!map.current || incidentList.length === 0) return;
+
+    const bounds = new mapboxgl.LngLatBounds();
+    let hasValidCoords = false;
+
+    incidentList.forEach((incident) => {
+      const coords = getIncidentCoordinates(incident);
+      if (coords && coords.length > 0) {
+        coords.forEach(([lng, lat]) => {
+          if (lng && lat && !isNaN(lng) && !isNaN(lat)) {
+            bounds.extend([lng, lat]);
+            hasValidCoords = true;
+          }
+        });
+      }
+    });
+
+    if (hasValidCoords) {
+      map.current.fitBounds(bounds, {
+        padding: 50,
+        maxZoom: 15,
+        duration: 1000,
+      });
+    }
+  };
+
+  // Load incidents from API
+  const loadIncidents = async () => {
+    try {
+      const response = await fetchIncidents({});
+      if (response.data?.data) {
+        const incidentData = response.data.data;
+        setIncidents(incidentData);
+
+        // Auto-zoom to show all incidents
+        setTimeout(() => {
+          autoZoomToIncidents(incidentData);
+        }, 100);
+      }
+    } catch (error) {
+      console.error('Failed to load incidents:', error);
+    }
+  };
+
+  const handleRefresh = async () => {
+    try {
+      const response = await fetchIncidents({});
+      if (response.data?.data) {
+        setIncidents(response.data.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch incidents:', error);
+    }
+  };
 
   useEffect(() => {
     if (!map.current || incidents.length === 0) return;
@@ -66,7 +122,7 @@ export default function MapView() {
       const lineLayerId = `line-${incident.id}`;
       const polygonLayerId = `polygon-${incident.id}`;
       const polygonBorderId = `polygon-border-${incident.id}`;
-      
+
       if (map.current?.getLayer(lineLayerId)) {
         map.current.removeLayer(lineLayerId);
       }
@@ -119,7 +175,7 @@ export default function MapView() {
           bounds.extend(coords);
         }
       });
-      
+
       if (!bounds.isEmpty()) {
         map.current.fitBounds(bounds, { padding: 50, maxZoom: 15 });
       }
@@ -253,28 +309,11 @@ export default function MapView() {
     });
   };
 
-  const loadIncidents = async () => {
-    try {
-      const response = await fetchIncidents({});
-      if (response.data?.data) {
-        setIncidents(response.data.data);
-      } else if (response.error && response.status !== 401 && response.status !== 403) {
-        // Only show error for non-auth errors
-        console.error('Failed to load incidents:', response.error);
-      }
-    } catch (error) {
-      console.error('Error loading incidents:', error);
-    }
-  };
-
-  const handleRefresh = () => {
-    loadIncidents();
-  };
 
   return (
     <div className="relative w-full h-full">
       <div ref={mapContainer} className="w-full h-full" />
-      
+
       {/* Refresh button */}
       <button
         onClick={handleRefresh}
