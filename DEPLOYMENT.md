@@ -1,9 +1,7 @@
-# Complete Deployment Guide
-## Multi-Agent Orchestration System
+# Deployment Guide
 
-**Last Updated:** October 21, 2025  
-**Status:** ✅ Production Ready - All APIs Verified Working  
-**Deployment Time:** ~5 minutes
+**Deployment Time:** ~5 minutes  
+**Status:** ✅ Production Ready
 
 ---
 
@@ -17,366 +15,260 @@ chmod +x DEPLOY.sh
 ```
 
 This script will:
-1. ✅ Check prerequisites (AWS CLI, Python, credentials)
-2. ✅ Deploy/update all Lambda functions
-3. ✅ Verify infrastructure status
-4. ✅ Test all API endpoints
-5. ✅ Display deployment summary
+1. Check prerequisites (AWS CLI, Python, credentials)
+2. Deploy/update all Lambda functions
+3. Verify infrastructure status
+4. Test all API endpoints
+5. Display deployment summary
 
 ---
 
-## System Architecture
+## Prerequisites
 
-### Infrastructure Components
+### Required Software
+- AWS CLI (configured with credentials)
+- Python 3.11+
+- Node.js 18+ (for frontend)
+- Git
 
-**API Layer:**
-- API Gateway (REST): `vluqfpl2zi.execute-api.us-east-1.amazonaws.com/v1`
-- Lambda Authorizer: JWT token validation via Cognito
+### AWS Account Setup
+```bash
+# Configure AWS credentials
+aws configure
 
-**Compute Layer:**
-- Config Handler: Agent/domain management
-- Ingest Handler: Report submission and processing
-- Query Handler: Natural language question processing
-- Orchestrator: Multi-agent coordination
-- Status Publisher: Real-time status updates (optional)
+# Verify credentials
+aws sts get-caller-identity
+```
 
-**Data Layer:**
-- DynamoDB: Configuration storage (agents, domains, playbooks)
-- RDS PostgreSQL: Incident and query data storage
-- S3: Evidence and backup storage
+---
+
+## Infrastructure Overview
+
+### Deployed Resources
+
+**API Gateway:**
+- API ID: `vluqfpl2zi`
+- Base URL: `https://vluqfpl2zi.execute-api.us-east-1.amazonaws.com/v1`
+
+**Lambda Functions:**
+- ConfigHandler - Agent/domain management
+- IngestHandler - Report processing
+- QueryHandler - Question processing
+- Orchestrator - Multi-agent coordination
+- Authorizer - JWT validation
+
+**Data Storage:**
+- DynamoDB - Configuration storage (6 tables)
+- RDS PostgreSQL - Incident and query data
+- S3 - File storage
 
 **Authentication:**
-- Cognito User Pool: User management
-- JWT Tokens: API authentication
+- Cognito User Pool ID: `us-east-1_7QZ7Y6Gbl`
+- Client ID: `6gobbpage9af3nd7ahm3lchkct`
+- Test User: `testuser` / `TestPassword123!`
 
 ---
 
-## Deployed Resources
+## Deployment Steps
 
-### API Gateway
-- **API ID:** vluqfpl2zi
-- **Name:** MultiAgentOrchestration-dev-Api-RestApi
-- **Base URL:** https://vluqfpl2zi.execute-api.us-east-1.amazonaws.com/v1
-- **Type:** EDGE
-- **Endpoints:**
-  - GET/POST `/api/v1/config` - Configuration management
-  - POST `/api/v1/ingest` - Report submission
-  - POST `/api/v1/query` - Question processing
-  - GET `/api/v1/tools` - Tool registry
-  - GET `/api/v1/data` - Data retrieval
+### 1. Deploy Backend
 
-### Lambda Functions
-| Function | Runtime | Purpose | Status |
-|----------|---------|---------|--------|
-| ConfigHandler | python3.11 | Agent/domain CRUD | ✅ Working |
-| IngestHandler | python3.11 | Report processing | ✅ Working |
-| QueryHandler | python3.11 | Query processing | ✅ Working |
-| Orchestrator | python3.11 | Multi-agent coordination | ✅ Working |
-| StatusPublisher | python3.11 | Real-time updates | ✅ Optional |
-| Authorizer | python3.11 | JWT validation | ✅ Working |
-
-### DynamoDB Tables
-1. **Configurations** - Agent and domain configurations
-2. **Incidents** - Submitted reports and extracted data
-3. **DataQueries** - Query history and results
-4. **ToolCatalog** - Available tools registry
-5. **ToolPermissions** - Tool access control
-6. **UserSessions** - Session management
-
-### RDS PostgreSQL
-- **Instance:** multiagentorchestration-dev-databasewriter2462cc03
-- **Status:** Available
-- **Purpose:** Structured data storage for incidents and queries
-
-### Cognito
-- **User Pool ID:** us-east-1_7QZ7Y6Gbl
-- **Client ID:** 6gobbpage9af3nd7ahm3lchkct
-- **Test User:** testuser / TestPassword123!
-
----
-
-## API Endpoints
-
-### 1. Configuration API
-
-**List Agents:**
 ```bash
-GET /api/v1/config?type=agent
-Authorization: Bearer {JWT_TOKEN}
-
-Response (200 OK):
-{
-  "configs": [
-    {
-      "agent_id": "geo_agent",
-      "agent_name": "Geo Agent",
-      "agent_type": "geo",
-      "is_builtin": true
-    }
-  ],
-  "count": 5
-}
+./DEPLOY.sh
 ```
 
-**Create Agent:**
-```bash
-POST /api/v1/config
-Authorization: Bearer {JWT_TOKEN}
-Content-Type: application/json
+**What it does:**
+- Updates Lambda function code
+- Verifies all services are running
+- Tests API endpoints
+- Creates test user if needed
 
-{
-  "type": "agent",
-  "config": {
-    "agent_name": "Custom Agent",
-    "agent_type": "custom",
-    "system_prompt": "You are a helpful assistant",
-    "tools": ["bedrock"],
-    "output_schema": {"result": "string"}
-  }
-}
+**Expected output:**
+```
+✓ Deployment Complete!
 
-Response (201 Created):
-{
-  "agent_id": "agent_abc123",
-  "agent_name": "Custom Agent",
-  "created_at": "2025-10-21T10:00:00Z"
-}
+API Endpoint:
+  https://vluqfpl2zi.execute-api.us-east-1.amazonaws.com/v1
+
+Test Credentials:
+  Username: testuser
+  Password: TestPassword123!
 ```
 
-### 2. Ingest API
+### 2. Setup Frontend
 
-**Submit Report:**
-```bash
-POST /api/v1/ingest
-Authorization: Bearer {JWT_TOKEN}
-Content-Type: application/json
-
-{
-  "domain_id": "civic_complaints",
-  "text": "Broken streetlight on Main Street"
-}
-
-Response (202 Accepted):
-{
-  "job_id": "job_abc123",
-  "status": "accepted",
-  "message": "Report submitted for processing",
-  "estimated_completion_seconds": 30
-}
-```
-
-### 3. Query API
-
-**Ask Question:**
-```bash
-POST /api/v1/query
-Authorization: Bearer {JWT_TOKEN}
-Content-Type: application/json
-
-{
-  "domain_id": "civic_complaints",
-  "question": "What are the most common complaints?"
-}
-
-Response (202 Accepted):
-{
-  "job_id": "query_abc123",
-  "query_id": "qry_xyz789",
-  "status": "accepted",
-  "message": "Query submitted for processing"
-}
-```
-
-### 4. Tools API
-
-**List Tools:**
-```bash
-GET /api/v1/tools
-Authorization: Bearer {JWT_TOKEN}
-
-Response (200 OK):
-{
-  "tools": [
-    {
-      "tool_name": "bedrock",
-      "tool_type": "llm",
-      "is_builtin": true
-    }
-  ],
-  "count": 1
-}
-```
-
-### 5. Data API
-
-**Retrieve Data:**
-```bash
-GET /api/v1/data?type=retrieval
-Authorization: Bearer {JWT_TOKEN}
-
-Response (200 OK):
-{
-  "status": "success",
-  "data": [],
-  "count": 0
-}
-```
-
----
-
-## Frontend Setup
-
-### Prerequisites
 ```bash
 cd infrastructure/frontend
+
+# Install dependencies (first time only)
 npm install
+
+# Start development server
+npm run dev
 ```
 
-### Environment Configuration
+**Frontend URL:** `http://localhost:3000`
 
-Create/verify `.env.local`:
+### 3. Verify Deployment
+
+```bash
+# Test APIs
+python3 TEST.py
+
+# Expected: 11/11 tests passed
+```
+
+---
+
+## Environment Configuration
+
+### Frontend Environment Variables
+
+File: `infrastructure/frontend/.env.local`
+
 ```bash
 NEXT_PUBLIC_API_URL=https://vluqfpl2zi.execute-api.us-east-1.amazonaws.com/v1
 NEXT_PUBLIC_COGNITO_USER_POOL_ID=us-east-1_7QZ7Y6Gbl
 NEXT_PUBLIC_COGNITO_CLIENT_ID=6gobbpage9af3nd7ahm3lchkct
 NEXT_PUBLIC_COGNITO_REGION=us-east-1
-NEXT_PUBLIC_MAPBOX_TOKEN=pk.eyJ1IjoidmVkc2FnYSIsImEiOiJjbWdxazNka2YxOG53Mmlxd3RwN211bDNrIn0.PH39dGgLFB12ChD4slLqMQ
+NEXT_PUBLIC_MAPBOX_TOKEN=your_mapbox_token_here
 ```
-
-### Start Development Server
-```bash
-npm run dev
-```
-
-Open browser: `http://localhost:3000`
-
----
-
-## Testing
-
-### Manual API Testing
-
-**Get JWT Token:**
-```bash
-aws cognito-idp initiate-auth \
-  --auth-flow USER_PASSWORD_AUTH \
-  --client-id 6gobbpage9af3nd7ahm3lchkct \
-  --auth-parameters USERNAME=testuser,PASSWORD=TestPassword123! \
-  --region us-east-1 \
-  --query 'AuthenticationResult.IdToken' \
-  --output text
-```
-
-**Test Config API:**
-```bash
-TOKEN="your_jwt_token_here"
-
-curl -X GET "https://vluqfpl2zi.execute-api.us-east-1.amazonaws.com/v1/api/v1/config?type=agent" \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-### Automated Testing
-
-Run comprehensive test suite:
-```bash
-python3 comprehensive_api_test.py
-```
-
-Expected: 11/11 tests passed (100% success rate)
 
 ---
 
 ## Troubleshooting
 
-### Issue: Lambda Functions Not Found
+### Issue: DEPLOY.sh fails
 
-**Solution:**
+**Check AWS credentials:**
 ```bash
-# Check if stacks are deployed
+aws sts get-caller-identity
+```
+
+**Check if infrastructure exists:**
+```bash
 aws cloudformation list-stacks \
   --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE \
   --query 'StackSummaries[?contains(StackName, `MultiAgent`)].StackName'
+```
 
-# If not deployed, deploy infrastructure first
+**If stacks don't exist, deploy infrastructure first:**
+```bash
 cd infrastructure
 npm install
 npm run build
 cdk deploy --all
 ```
 
-### Issue: API Returns 401 Unauthorized
+### Issue: Frontend won't start
 
 **Solution:**
 ```bash
-# Reset test user password
+cd infrastructure/frontend
+rm -rf .next node_modules
+npm install
+npm run dev
+```
+
+### Issue: Login fails
+
+**Reset test user password:**
+```bash
 aws cognito-idp admin-set-user-password \
   --user-pool-id us-east-1_7QZ7Y6Gbl \
   --username testuser \
   --password TestPassword123! \
   --permanent \
   --region us-east-1
-
-# Get new token
-aws cognito-idp initiate-auth \
-  --auth-flow USER_PASSWORD_AUTH \
-  --client-id 6gobbpage9af3nd7ahm3lchkct \
-  --auth-parameters USERNAME=testuser,PASSWORD=TestPassword123! \
-  --region us-east-1
 ```
 
-### Issue: API Returns 500 Internal Server Error
+### Issue: API returns 500 error
 
-**Solution:**
+**Check Lambda logs:**
 ```bash
-# Check Lambda logs
 aws logs tail /aws/lambda/MultiAgentOrchestration-dev-Api-ConfigHandler \
   --follow --region us-east-1
+```
 
-# Redeploy Lambda functions
+**Redeploy:**
+```bash
 ./DEPLOY.sh
 ```
 
-### Issue: Frontend Can't Connect to API
-
-**Solution:**
-1. Verify `.env.local` has correct API URL
-2. Check browser console for CORS errors
-3. Verify JWT token is being sent in headers
-4. Test API directly with curl to isolate issue
-
 ---
 
-## Deployment Checklist
+## Initial Infrastructure Deployment
 
-### Before Deployment
-- [ ] AWS CLI installed and configured
-- [ ] AWS credentials valid
-- [ ] Python 3.11+ installed
-- [ ] Node.js 18+ installed (for frontend)
+If this is your first deployment and infrastructure doesn't exist:
 
-### After Deployment
-- [ ] All Lambda functions deployed
-- [ ] API Gateway responding
-- [ ] DynamoDB tables created
-- [ ] RDS database available
-- [ ] Cognito user pool configured
-- [ ] Test user created
-- [ ] All API tests passing
+### 1. Install CDK Dependencies
 
-### Frontend Integration
-- [ ] Frontend dependencies installed
-- [ ] Environment variables configured
-- [ ] Development server starts
-- [ ] Login works
-- [ ] API calls successful
+```bash
+cd infrastructure
+npm install
+```
+
+### 2. Bootstrap CDK (first time only)
+
+```bash
+cdk bootstrap aws://ACCOUNT_ID/us-east-1
+```
+
+Replace `ACCOUNT_ID` with your AWS account ID.
+
+### 3. Deploy All Stacks
+
+```bash
+cdk deploy --all --require-approval never
+```
+
+This will create:
+- Auth Stack (Cognito)
+- Storage Stack (S3)
+- Data Stack (DynamoDB, RDS)
+- API Stack (API Gateway, Lambda)
+
+**Deployment time:** ~25-30 minutes
+
+### 4. Create Test User
+
+```bash
+# Get User Pool ID from stack outputs
+USER_POOL_ID=$(aws cloudformation describe-stacks \
+  --stack-name MultiAgentOrchestration-dev-Auth \
+  --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' \
+  --output text)
+
+# Create user
+aws cognito-idp admin-create-user \
+  --user-pool-id $USER_POOL_ID \
+  --username testuser \
+  --user-attributes Name=email,Value=test@example.com \
+  --temporary-password TempPassword123! \
+  --region us-east-1
+
+# Set permanent password
+aws cognito-idp admin-set-user-password \
+  --user-pool-id $USER_POOL_ID \
+  --username testuser \
+  --password TestPassword123! \
+  --permanent \
+  --region us-east-1
+```
+
+### 5. Run Deployment Script
+
+```bash
+cd ..
+./DEPLOY.sh
+```
 
 ---
 
 ## Monitoring
 
-### CloudWatch Logs
+### View Lambda Logs
 
-**View Lambda logs:**
 ```bash
 # Config Handler
 aws logs tail /aws/lambda/MultiAgentOrchestration-dev-Api-ConfigHandler --follow
@@ -391,10 +283,9 @@ aws logs tail /aws/lambda/MultiAgentOrchestration-dev-Api-QueryHandler --follow
 aws logs tail /aws/lambda/MultiAgentOrchestration-dev-Orchestrator --follow
 ```
 
-### API Gateway Metrics
+### Check API Gateway Metrics
 
 ```bash
-# Get API metrics
 aws cloudwatch get-metric-statistics \
   --namespace AWS/ApiGateway \
   --metric-name Count \
@@ -407,26 +298,23 @@ aws cloudwatch get-metric-statistics \
 
 ---
 
-## Cost Optimization
+## Cost Management
 
-### Current Configuration
-- Lambda: Pay per invocation
-- DynamoDB: On-demand pricing
-- RDS: Aurora Serverless v2 (scales to 0.5 ACU)
-- API Gateway: Pay per request
-- S3: Standard storage
+### Stop RDS When Not in Use
 
-### Estimated Monthly Cost
+```bash
+# Stop RDS
+./infrastructure/scripts/stop-rds.sh
+
+# Start RDS
+./infrastructure/scripts/start-rds.sh
+```
+
+### Estimated Costs
+
 - **Development:** $35-40/month
 - **Production (low traffic):** $50-75/month
 - **Production (high traffic):** $150-300/month
-
-### Cost Reduction Tips
-1. Stop RDS when not in use: `./infrastructure/scripts/stop-rds.sh`
-2. Use DynamoDB on-demand (already configured)
-3. Enable S3 lifecycle policies for old data
-4. Set Lambda reserved concurrency limits
-5. Use CloudWatch Logs retention policies
 
 ---
 
@@ -439,23 +327,7 @@ cd infrastructure
 cdk destroy --all
 ```
 
-**Warning:** This will delete all data and cannot be undone!
-
-### Selective Cleanup
-
-**Stop RDS (keep data):**
-```bash
-./infrastructure/scripts/stop-rds.sh
-```
-
-**Delete old Lambda versions:**
-```bash
-aws lambda list-versions-by-function \
-  --function-name MultiAgentOrchestration-dev-Api-ConfigHandler \
-  --query 'Versions[?Version!=`$LATEST`].Version' \
-  --output text | \
-  xargs -I {} aws lambda delete-function --function-name MultiAgentOrchestration-dev-Api-ConfigHandler:{}
-```
+**Warning:** This deletes all data permanently!
 
 ---
 
@@ -463,21 +335,22 @@ aws lambda list-versions-by-function \
 
 ### Differences from Development
 
-1. **Multi-AZ RDS:** Enable for high availability
-2. **WAF:** Add Web Application Firewall to API Gateway
-3. **Custom Domain:** Use Route53 and ACM certificate
-4. **Monitoring:** Enhanced CloudWatch dashboards and alarms
-5. **Backup:** Automated RDS and DynamoDB backups
-6. **Secrets:** Use Secrets Manager for all credentials
-7. **VPC:** Deploy Lambda in private subnets with NAT Gateway
+1. **Multi-AZ RDS** - Enable for high availability
+2. **WAF** - Add Web Application Firewall
+3. **Custom Domain** - Use Route53 and ACM certificate
+4. **Enhanced Monitoring** - CloudWatch dashboards and alarms
+5. **Automated Backups** - RDS and DynamoDB backups
+6. **Secrets Manager** - Store all credentials securely
+7. **VPC Configuration** - Private subnets with NAT Gateway
 
 ### Production Checklist
+
 - [ ] Enable CloudTrail logging
 - [ ] Configure CloudWatch alarms
 - [ ] Set up SNS notifications
 - [ ] Enable AWS Config rules
 - [ ] Configure backup policies
-- [ ] Set up disaster recovery plan
+- [ ] Set up disaster recovery
 - [ ] Enable encryption at rest
 - [ ] Configure VPC endpoints
 - [ ] Set up CI/CD pipeline
@@ -485,34 +358,35 @@ aws lambda list-versions-by-function \
 
 ---
 
-## Support
+## Common Commands
 
-### Documentation
-- `API_STATUS_VERIFIED.md` - Complete API test results
-- `HACKATHON_READY_SUMMARY.md` - Demo preparation guide
-- `FRONTEND_INTEGRATION_COMPLETE.md` - Frontend integration details
-- `API_COMPLETE_GUIDE.md` - Comprehensive API reference
-
-### Quick Commands
-
-**Reset everything:**
 ```bash
+# Deploy system
 ./DEPLOY.sh
-```
 
-**Test APIs:**
-```bash
-python3 comprehensive_api_test.py
-```
+# Test APIs
+python3 TEST.py
 
-**Start frontend:**
-```bash
+# Start frontend
 cd infrastructure/frontend && npm run dev
-```
 
-**View logs:**
-```bash
+# View logs
 aws logs tail /aws/lambda/MultiAgentOrchestration-dev-Api-ConfigHandler --follow
+
+# Reset password
+aws cognito-idp admin-set-user-password \
+  --user-pool-id us-east-1_7QZ7Y6Gbl \
+  --username testuser \
+  --password TestPassword123! \
+  --permanent \
+  --region us-east-1
+
+# Get JWT token
+aws cognito-idp initiate-auth \
+  --auth-flow USER_PASSWORD_AUTH \
+  --client-id 6gobbpage9af3nd7ahm3lchkct \
+  --auth-parameters USERNAME=testuser,PASSWORD=TestPassword123! \
+  --region us-east-1
 ```
 
 ---
@@ -520,36 +394,28 @@ aws logs tail /aws/lambda/MultiAgentOrchestration-dev-Api-ConfigHandler --follow
 ## Success Criteria
 
 ### Deployment Successful When:
-- ✅ All Lambda functions deployed
-- ✅ API Gateway responding (HTTP 200/202)
-- ✅ Authentication working (JWT tokens)
-- ✅ DynamoDB tables accessible
-- ✅ RDS database available
-- ✅ Frontend can connect to API
-- ✅ Test user can login
-- ✅ All API tests passing
-
-### System Ready for Demo When:
+- ✅ `./DEPLOY.sh` completes without errors
+- ✅ All API tests pass (11/11)
+- ✅ Frontend starts on localhost:3000
+- ✅ Can login with test credentials
 - ✅ Can submit reports
 - ✅ Can ask questions
 - ✅ Can create custom agents
-- ✅ Can view agent list
-- ✅ Map displays correctly
-- ✅ Chat interface works
-- ✅ Error handling functional
 
 ---
 
-## Conclusion
+## Support
 
-**Status:** ✅ System Fully Deployed and Operational
+**Scripts:**
+- `./DEPLOY.sh` - Deploy/update system
+- `python3 TEST.py` - Test all APIs
 
-All APIs tested and verified working with 100% success rate. Frontend integrated and ready for demo. Infrastructure is production-ready and scalable.
+**Documentation:**
+- `README.md` - Project overview
+- `API_DOCUMENTATION.md` - API reference and testing
+- `DEPLOYMENT.md` - This file
 
-**Next Steps:**
-1. Run `./DEPLOY.sh` to deploy/update
-2. Start frontend with `npm run dev`
-3. Test all features
-4. Prepare demo presentation
+---
 
-**Time to Demo:** READY NOW 🚀
+**Status:** ✅ Ready for Deployment  
+**Last Updated:** October 21, 2025
