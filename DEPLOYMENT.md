@@ -113,6 +113,7 @@ npm run dev
 
 ```bash
 # Test APIs
+cd infrastructure
 python3 TEST.py
 
 # Expected: 11/11 tests passed
@@ -365,7 +366,7 @@ cdk destroy --all
 ./DEPLOY.sh
 
 # Test APIs
-python3 TEST.py
+cd infrastructure && python3 TEST.py
 
 # Start frontend
 cd infrastructure/frontend && npm run dev
@@ -395,7 +396,7 @@ aws cognito-idp initiate-auth \
 
 ### Deployment Successful When:
 - ✅ `./DEPLOY.sh` completes without errors
-- ✅ All API tests pass (11/11)
+- ✅ All API tests pass (11/11) - run `cd infrastructure && python3 TEST.py`
 - ✅ Frontend starts on localhost:3000
 - ✅ Can login with test credentials
 - ✅ Can submit reports
@@ -408,11 +409,11 @@ aws cognito-idp initiate-auth \
 
 **Scripts:**
 - `./DEPLOY.sh` - Deploy/update system
-- `python3 TEST.py` - Test all APIs
+- `infrastructure/TEST.py` - Test all APIs
 
 **Documentation:**
 - `README.md` - Project overview
-- `API_DOCUMENTATION.md` - API reference and testing
+- `infrastructure/API_DOCUMENTATION.md` - API reference and testing
 - `DEPLOYMENT.md` - This file
 
 ---

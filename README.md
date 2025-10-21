@@ -20,7 +20,14 @@ This system enables users to submit unstructured reports (text + images) which a
 ./DEPLOY.sh
 ```
 
-### 2. Start Frontend (2 minutes)
+### 2. Test APIs (1 minute)
+
+```bash
+cd infrastructure
+python3 TEST.py
+```
+
+### 3. Start Frontend (2 minutes)
 
 ```bash
 cd infrastructure/frontend
@@ -28,7 +35,7 @@ npm install  # First time only
 npm run dev
 ```
 
-### 3. Login and Test
+### 4. Login and Test
 
 - **URL:** http://localhost:3000/login
 - **Username:** testuser
@@ -132,12 +139,12 @@ npm run dev
 ```
 .
 ├── README.md                          # This file
-├── API_DOCUMENTATION.md               # API reference & testing
 ├── DEPLOYMENT.md                      # Deployment guide
 ├── DEPLOY.sh                          # Deployment script
-├── TEST.py                            # API test suite
 │
 ├── infrastructure/
+│   ├── API_DOCUMENTATION.md           # API reference & testing
+│   ├── TEST.py                        # API test suite
 │   ├── bin/app.ts                     # CDK app entry
 │   ├── lib/stacks/                    # CDK stacks
 │   │   ├── auth-stack.ts              # Cognito
@@ -199,7 +206,7 @@ npm run dev
 | `/api/v1/tools` | GET | List tools | ✅ 200 |
 | `/api/v1/data` | GET | Retrieve data | ✅ 200 |
 
-See `API_DOCUMENTATION.md` for detailed API reference.
+See `infrastructure/API_DOCUMENTATION.md` for detailed API reference.
 
 ---
 
@@ -252,6 +259,7 @@ See `API_DOCUMENTATION.md` for detailed API reference.
 ### Automated Tests
 
 ```bash
+cd infrastructure
 python3 TEST.py
 ```
 
@@ -267,14 +275,14 @@ python3 TEST.py
 
 ### Manual Testing
 
-See `API_DOCUMENTATION.md` for curl examples.
+See `infrastructure/API_DOCUMENTATION.md` for curl examples.
 
 ---
 
 ## Documentation
 
 1. **README.md** (this file) - Project overview
-2. **API_DOCUMENTATION.md** - Complete API reference and testing guide
+2. **infrastructure/API_DOCUMENTATION.md** - Complete API reference and testing guide
 3. **DEPLOYMENT.md** - Deployment instructions and troubleshooting
 
 ---
@@ -408,7 +416,7 @@ MIT License - Created for AWS AI Agent Hackathon
 ./DEPLOY.sh
 
 # Test APIs
-python3 TEST.py
+cd infrastructure && python3 TEST.py
 
 # Start frontend
 cd infrastructure/frontend && npm run dev
