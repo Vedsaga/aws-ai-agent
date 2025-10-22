@@ -1,0 +1,398 @@
+{
+  "builtin_agents": {
+    "ingestion": [
+      {
+        "agent_id": "builtin-ingestion-geo",
+        "agent_name": "Geo Locator",
+        "agent_class": "ingestion",
+        "system_prompt": "You are a geographic location extraction specialist. Analyze the input text and extract location information including addresses, landmarks, neighborhoods, and geographic references. Use Amazon Location Service for geocoding when specific addresses are mentioned. Output the location as text, coordinates (longitude, latitude), and confidence score (0-1).",
+        "tools": ["location_service", "web_search"],
+        "agent_dependencies": [],
+        "output_schema": {
+          "location_text": {
+            "type": "string",
+            "description": "Extracted location as text"
+          },
+          "geo_location": {
+            "type": "object",
+            "description": "GeoJSON Point geometry",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["Point"]
+              },
+              "coordinates": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 2,
+                "maxItems": 2
+              }
+            }
+          },
+          "address": {
+            "type": "string",
+            "description": "Formatted address"
+          },
+          "confidence": {
+            "type": "number",
+            "description": "Confidence score 0-1"
+          }
+        },
+        "description": "Extracts geographic location from unstructured text",
+        "is_inbuilt": true
+      },
+      {
+        "agent_id": "builtin-ingestion-temporal",
+        "agent_name": "Temporal Analyzer",
+        "agent_class": "ingestion",
+        "system_prompt": "You are a temporal information extraction specialist. Analyze the input text and extract time and date information. Parse relative time expressions like 'today', 'yesterday', 'last week', 'this morning'. Convert all times to ISO 8601 format timestamps. Determine urgency based on how recent the incident is (immediate, urgent, moderate, low).",
+        "tools": [],
+        "agent_dependencies": [],
+        "output_schema": {
+          "timestamp": {
+            "type": "string",
+            "description": "ISO 8601 timestamp"
+          },
+          "time_reference": {
+            "type": "string",
+            "description": "Original time reference from text"
+          },
+          "urgency": {
+            "type": "string",
+            "enum": ["immediate", "urgent", "moderate", "low"],
+            "description": "Urgency level"
+          }
+        },
+        "description": "Extracts temporal information and determines urgency",
+        "is_inbuilt": true
+      },
+      {
+        "agent_id": "builtin-ingestion-entity",
+        "agent_name": "Entity Extractor",
+        "agent_class": "ingestion",
+        "system_prompt": "You are an entity extraction and categorization specialist. Analyze the input text and extract entities, sentiment, and key phrases using AWS Comprehend. Identify named entities (people, organizations, locations). Analyze sentiment (positive, negative, neutral, mixed). Extract key phrases that summarize main issues. Categorize the complaint type (infrastructure, safety, environment, service, other).",
+        "tools": ["comprehend"],
+        "agent_dependencies": [],
+        "output_schema": {
+          "entities": {
+            "type": "array",
+            "description": "Named entities extracted"
+          },
+          "sentiment": {
+            "type": "string",
+            "enum": ["positive", "negative", "neutral", "mixed"],
+            "description": "Overall sentiment"
+          },
+          "key_phrases": {
+            "type": "array",
+            "description": "Key phrases summarizing issues"
+          },
+          "complaint_type": {
+            "type": "string",
+            "description": "Category of complaint"
+          }
+        },
+        "description": "Extracts entities, sentiment, and categorizes content",
+        "is_inbuilt": true
+      }
+    ],
+    "query": [
+      {
+        "agent_id": "builtin-query-who",
+        "agent_name": "Who Agent",
+        "agent_class": "query",
+        "system_prompt": "You are a 'who' question specialist. Analyze entities and actors involved in incidents. Answer questions about who reported incidents, who was affected, and entity patterns. Use the Retrieval API to get entity information from reports. Provide clear answers with references to source data.",
+        "tools": ["retrieval_api", "aggregation_api"],
+        "agent_dependencies": [],
+        "output_schema": {
+          "entities": {
+            "type": "array",
+            "description": "Entities involved"
+          },
+          "reporters": {
+            "type": "string",
+            "description": "Who reported"
+          },
+          "affected": {
+            "type": "string",
+            "description": "Who was affected"
+          },
+          "answer": {
+            "type": "string",
+            "description": "Natural language answer"
+          }
+        },
+        "description": "Answers 'who' questions about entities and actors",
+        "is_inbuilt": true
+      },
+      {
+        "agent_id": "builtin-query-what",
+        "agent_name": "What Agent",
+        "agent_class": "query",
+        "system_prompt": "You are a 'what' question specialist. Analyze what types of incidents occurred. Answer questions about incident categories, common issues, entity types, and content patterns. Use the Retrieval API to get incident details and Aggregation API for statistics.",
+        "tools": ["retrieval_api", "aggregation_api"],
+        "agent_dependencies": [],
+        "output_schema": {
+          "incident_types": {
+            "type": "array",
+            "description": "Types of incidents"
+          },
+          "common_issues": {
+            "type": "array",
+            "description": "Common issues found"
+          },
+          "summary": {
+            "type": "string",
+            "description": "Summary of findings"
+          },
+          "answer": {
+            "type": "string",
+            "description": "Natural language answer"
+          }
+        },
+        "description": "Answers 'what' questions about incident types and content",
+        "is_inbuilt": true
+      },
+      {
+        "agent_id": "builtin-query-where",
+        "agent_name": "Where Agent",
+        "agent_class": "query",
+        "system_prompt": "You are a 'where' question specialist. Analyze spatial patterns in the data. Answer questions about where incidents occurred, geographic clusters, hotspots, and spatial distributions. Use the Spatial Query API for geospatial analysis and generate map data for visualization.",
+        "tools": ["spatial_api", "retrieval_api"],
+        "agent_dependencies": [],
+        "output_schema": {
+          "locations": {
+            "type": "array",
+            "description": "Locations identified"
+          },
+          "hotspots": {
+            "type": "array",
+            "description": "Geographic hotspots"
+          },
+          "map_data": {
+            "type": "object",
+            "description": "GeoJSON for map display"
+          },
+          "answer": {
+            "type": "string",
+            "description": "Natural language answer"
+          }
+        },
+        "description": "Answers 'where' questions about locations and spatial patterns",
+        "is_inbuilt": true
+      },
+      {
+        "agent_id": "builtin-query-when",
+        "agent_name": "When Agent",
+        "agent_class": "query",
+        "system_prompt": "You are a 'when' question specialist. Analyze temporal patterns in the data. Answer questions about when incidents occurred, time trends, frequency over time periods, and temporal correlations. Use the Analytics API to retrieve time-series data.",
+        "tools": ["analytics_api", "retrieval_api"],
+        "agent_dependencies": [],
+        "output_schema": {
+          "time_pattern": {
+            "type": "string",
+            "description": "Temporal pattern identified"
+          },
+          "frequency": {
+            "type": "string",
+            "description": "Frequency analysis"
+          },
+          "trend": {
+            "type": "string",
+            "description": "Trend description"
+          },
+          "answer": {
+            "type": "string",
+            "description": "Natural language answer"
+          }
+        },
+        "description": "Answers 'when' questions about temporal patterns",
+        "is_inbuilt": true
+      },
+      {
+        "agent_id": "builtin-query-why",
+        "agent_name": "Why Agent",
+        "agent_class": "query",
+        "system_prompt": "You are a 'why' question specialist. Analyze causal relationships and reasons behind incidents. Answer questions about why incidents occurred, root causes, contributing factors, and correlations. Use the Analytics API for pattern detection and correlation analysis.",
+        "tools": ["analytics_api", "retrieval_api"],
+        "agent_dependencies": [],
+        "output_schema": {
+          "causes": {
+            "type": "array",
+            "description": "Identified causes"
+          },
+          "factors": {
+            "type": "array",
+            "description": "Contributing factors"
+          },
+          "analysis": {
+            "type": "string",
+            "description": "Causal analysis"
+          },
+          "answer": {
+            "type": "string",
+            "description": "Natural language answer"
+          }
+        },
+        "description": "Answers 'why' questions about causes and reasons",
+        "is_inbuilt": true
+      },
+      {
+        "agent_id": "builtin-query-how",
+        "agent_name": "How Agent",
+        "agent_class": "query",
+        "system_prompt": "You are a 'how' question specialist. Analyze methods, processes, and mechanisms. Answer questions about how incidents occurred, how they were resolved, and how patterns emerged. Use the Retrieval API for incident details and process analysis.",
+        "tools": ["retrieval_api", "analytics_api"],
+        "agent_dependencies": [],
+        "output_schema": {
+          "methods": {
+            "type": "array",
+            "description": "Methods identified"
+          },
+          "process": {
+            "type": "string",
+            "description": "Process description"
+          },
+          "insights": {
+            "type": "string",
+            "description": "Insights about mechanisms"
+          },
+          "answer": {
+            "type": "string",
+            "description": "Natural language answer"
+          }
+        },
+        "description": "Answers 'how' questions about methods and processes",
+        "is_inbuilt": true
+      }
+    ],
+    "management": [
+      {
+        "agent_id": "builtin-management-task-assigner",
+        "agent_name": "Task Assigner",
+        "agent_class": "management",
+        "system_prompt": "You are a task assignment specialist. Analyze the user's command to assign tasks to teams or individuals. Extract the assignee information (team ID or user ID) and update the report's management_data with task assignment details. Include assignee_id, assigned_at timestamp, and assignment reason.",
+        "tools": ["retrieval_api"],
+        "agent_dependencies": [],
+        "output_schema": {
+          "assignee_id": {
+            "type": "string",
+            "description": "Team or user ID"
+          },
+          "assignee_type": {
+            "type": "string",
+            "enum": ["team", "user"],
+            "description": "Type of assignee"
+          },
+          "assigned_at": {
+            "type": "string",
+            "description": "ISO 8601 timestamp"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Reason for assignment"
+          }
+        },
+        "description": "Assigns tasks to teams or users based on commands",
+        "is_inbuilt": true
+      },
+      {
+        "agent_id": "builtin-management-status-updater",
+        "agent_name": "Status Updater",
+        "agent_class": "management",
+        "system_prompt": "You are a status update specialist. Analyze the user's command to update report status. Extract the new status (pending, in_progress, resolved, closed) and update the report's management_data. Add a history entry with status, timestamp, and user who made the change.",
+        "tools": ["retrieval_api"],
+        "agent_dependencies": [],
+        "output_schema": {
+          "status": {
+            "type": "string",
+            "enum": ["pending", "in_progress", "resolved", "closed"],
+            "description": "New status"
+          },
+          "updated_at": {
+            "type": "string",
+            "description": "ISO 8601 timestamp"
+          },
+          "updated_by": {
+            "type": "string",
+            "description": "User ID who updated"
+          },
+          "notes": {
+            "type": "string",
+            "description": "Update notes"
+          }
+        },
+        "description": "Updates report status based on commands",
+        "is_inbuilt": true
+      },
+      {
+        "agent_id": "builtin-management-task-details-editor",
+        "agent_name": "Task Details Editor",
+        "agent_class": "management",
+        "system_prompt": "You are a task details editor. Analyze the user's command to update task details like priority, due date, or other metadata. Extract the field to update and the new value. Update the report's management_data.task_details with the changes.",
+        "tools": ["retrieval_api"],
+        "agent_dependencies": [],
+        "output_schema": {
+          "field": {
+            "type": "string",
+            "description": "Field to update (priority, due_at, etc)"
+          },
+          "value": {
+            "type": "string",
+            "description": "New value"
+          },
+          "updated_at": {
+            "type": "string",
+            "description": "ISO 8601 timestamp"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Reason for change"
+          }
+        },
+        "description": "Edits task details like priority and due dates",
+        "is_inbuilt": true
+      }
+    ]
+  },
+  "sample_domain": {
+    "domain_id": "civic_complaints",
+    "domain_name": "Civic Complaints",
+    "description": "Citizen-reported infrastructure and service issues with location, time, and entity extraction",
+    "ingestion_playbook": {
+      "agent_execution_graph": {
+        "nodes": [
+          "builtin-ingestion-geo",
+          "builtin-ingestion-temporal",
+          "builtin-ingestion-entity"
+        ],
+        "edges": []
+      }
+    },
+    "query_playbook": {
+      "agent_execution_graph": {
+        "nodes": [
+          "builtin-query-who",
+          "builtin-query-what",
+          "builtin-query-where",
+          "builtin-query-when",
+          "builtin-query-why",
+          "builtin-query-how"
+        ],
+        "edges": []
+      }
+    },
+    "management_playbook": {
+      "agent_execution_graph": {
+        "nodes": [
+          "builtin-management-task-assigner",
+          "builtin-management-status-updater",
+          "builtin-management-task-details-editor"
+        ],
+        "edges": []
+      }
+    }
+  }
+}

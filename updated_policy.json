@@ -1,0 +1,82 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Action": [
+                "dynamodb:BatchGetItem",
+                "dynamodb:ConditionCheckItem",
+                "dynamodb:DescribeTable",
+                "dynamodb:GetItem",
+                "dynamodb:GetRecords",
+                "dynamodb:GetShardIterator",
+                "dynamodb:Query",
+                "dynamodb:Scan"
+            ],
+            "Resource": [
+                "arn:aws:dynamodb:us-east-1:847272187168:table/MultiAgentOrchestration-dev-Data-Configurations",
+                "arn:aws:dynamodb:us-east-1:847272187168:table/MultiAgentOrchestration-dev-Data-Configurations/index/*"
+            ],
+            "Effect": "Allow"
+        },
+        {
+            "Action": [
+                "dynamodb:BatchGetItem",
+                "dynamodb:BatchWriteItem",
+                "dynamodb:ConditionCheckItem",
+                "dynamodb:DeleteItem",
+                "dynamodb:DescribeTable",
+                "dynamodb:GetItem",
+                "dynamodb:GetRecords",
+                "dynamodb:GetShardIterator",
+                "dynamodb:PutItem",
+                "dynamodb:Query",
+                "dynamodb:Scan",
+                "dynamodb:UpdateItem"
+            ],
+            "Resource": [
+                "arn:aws:dynamodb:us-east-1:847272187168:table/MultiAgentOrchestration-dev-Data-QueryJobs",
+                "arn:aws:dynamodb:us-east-1:847272187168:table/MultiAgentOrchestration-dev-Data-QueryJobs/index/*"
+            ],
+            "Effect": "Allow"
+        },
+        {
+            "Action": [
+                "dynamodb:BatchGetItem",
+                "dynamodb:BatchWriteItem",
+                "dynamodb:ConditionCheckItem",
+                "dynamodb:DeleteItem",
+                "dynamodb:DescribeTable",
+                "dynamodb:GetItem",
+                "dynamodb:GetRecords",
+                "dynamodb:GetShardIterator",
+                "dynamodb:PutItem",
+                "dynamodb:Query",
+                "dynamodb:Scan",
+                "dynamodb:UpdateItem"
+            ],
+            "Resource": [
+                "arn:aws:dynamodb:us-east-1:847272187168:table/MultiAgentOrchestration-dev-Data-Reports",
+                "arn:aws:dynamodb:us-east-1:847272187168:table/MultiAgentOrchestration-dev-Data-Reports/index/*",
+                "arn:aws:dynamodb:us-east-1:847272187168:table/MultiAgentOrchestration-dev-Incidents",
+                "arn:aws:dynamodb:us-east-1:847272187168:table/MultiAgentOrchestration-dev-Incidents/index/*"
+            ],
+            "Effect": "Allow"
+        },
+        {
+            "Action": [
+                "secretsmanager:DescribeSecret",
+                "secretsmanager:GetSecretValue"
+            ],
+            "Resource": [
+                "arn:aws:secretsmanager:us-east-1:847272187168:secret:MultiAgentOrchestration-dev-Data-DatabaseCredentials-dusbxh",
+                "arn:aws:secretsmanager:us-east-1:847272187168:secret:MultiAgentOrchestrationde-DatabaseSecretAttachmen-Ks0Iqz"
+            ],
+            "Effect": "Allow"
+        },
+        {
+            "Action": "bedrock:InvokeModel",
+            "Resource": "*",
+            "Effect": "Allow"
+        }
+    ]
+}

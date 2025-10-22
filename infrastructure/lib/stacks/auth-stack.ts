@@ -77,12 +77,29 @@ export class AuthStack extends cdk.Stack {
       },
     });
 
-    // Lambda Authorizer Function
+    // Lambda Authorizer Function - using regular Function with bundled dependencies
+    // Note: We can't use PythonFunction here because it requires docker and poetry
+    // Instead, we'll create a layer with the dependencies
+    const authorizerLayer = new lambda.LayerVersion(this, 'AuthorizerLayer', {
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../lambda/authorizer'), {
+        bundling: {
+          image: lambda.Runtime.PYTHON_3_11.bundlingImage,
+          command: [
+            'bash', '-c',
+            'pip install -r requirements.txt -t /asset-output/python && cp *.py /asset-output/python/'
+          ],
+        },
+      }),
+      compatibleRuntimes: [lambda.Runtime.PYTHON_3_11],
+      description: 'PyJWT and dependencies for authorizer',
+    });
+
     this.authorizerFunction = new lambda.Function(this, 'AuthorizerFunction', {
       functionName: `${id}-Authorizer`,
       runtime: lambda.Runtime.PYTHON_3_11,
       handler: 'authorizer.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../../lambda/authorizer')),
+      layers: [authorizerLayer],
       timeout: cdk.Duration.seconds(30),
       memorySize: 256,
       environment: {

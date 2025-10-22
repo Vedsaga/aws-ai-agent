@@ -1,82 +1,66 @@
 """
 Load Playbook Lambda Function
 
-Loads playbook configuration from DynamoDB based on domain_id and playbook_type.
+Loads playbook configuration from RDS PostgreSQL based on domain_id and playbook_type.
 
-Requirements: 2.2, 7.1
+Requirements: 2.2, 7.1, 8.1, 8.4
 """
 
 import json
 import os
 import sys
-import boto3
 import logging
 from typing import Dict, Any, List
-from botocore.exceptions import ClientError
 
 # Add realtime module to path for status publishing
 sys.path.append(os.path.join(os.path.dirname(__file__), '../realtime'))
 from status_utils import publish_orchestrator_status
 
+# Import RDS utilities
+from rds_utils import get_playbook
+
 # Configure logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Initialize AWS clients
-dynamodb = boto3.resource('dynamodb')
-
-# Environment variables
-PLAYBOOK_CONFIGS_TABLE = os.environ.get('PLAYBOOK_CONFIGS_TABLE', 'playbook_configs')
-
 
 def load_playbook(tenant_id: str, domain_id: str, playbook_type: str) -> Dict[str, Any]:
     """
-    Load playbook configuration from DynamoDB.
+    Load playbook configuration from RDS PostgreSQL.
     
     Args:
         tenant_id: Tenant identifier
         domain_id: Domain identifier
-        playbook_type: Type of playbook ('ingestion' or 'query')
+        playbook_type: Type of playbook ('ingestion', 'query', or 'management')
     
     Returns:
-        Playbook configuration
+        Playbook configuration with agent_execution_graph
     
     Raises:
         ValueError: If playbook not found
     """
     try:
-        table = dynamodb.Table(PLAYBOOK_CONFIGS_TABLE)
+        # Get playbook from RDS
+        playbook = get_playbook(tenant_id, domain_id, playbook_type)
         
-        # Query for playbook by tenant_id and domain_id
-        response = table.query(
-            KeyConditionExpression='tenant_id = :tid AND begins_with(playbook_id, :did)',
-            FilterExpression='domain_id = :did AND playbook_type = :ptype',
-            ExpressionAttributeValues={
-                ':tid': tenant_id,
-                ':did': domain_id,
-                ':ptype': playbook_type
-            }
-        )
-        
-        items = response.get('Items', [])
-        
-        if not items:
+        if not playbook:
             raise ValueError(
                 f"Playbook not found for domain '{domain_id}', type '{playbook_type}'"
             )
         
-        # Use the first matching playbook
-        playbook = items[0]
+        # Extract agent IDs from execution graph
+        agent_execution_graph = playbook.get('agent_execution_graph', {})
+        agent_ids = agent_execution_graph.get('nodes', [])
         
         logger.info(
-            f"Loaded playbook '{playbook.get('playbook_id')}' with "
-            f"{len(playbook.get('agent_ids', []))} agents"
+            f"Loaded {playbook_type} playbook for domain '{domain_id}' with "
+            f"{len(agent_ids)} agents"
         )
         
         return playbook
         
-    except ClientError as e:
-        logger.error(f"DynamoDB error loading playbook: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error loading playbook: {str(e)}")
         raise ValueError(f"Failed to load playbook: {str(e)}")
 
 
@@ -123,8 +107,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Load playbook
         playbook = load_playbook(tenant_id, domain_id, playbook_type)
         
-        # Extract agent IDs
-        agent_ids = playbook.get('agent_ids', [])
+        # Extract agent execution graph
+        agent_execution_graph = playbook.get('agent_execution_graph', {})
+        agent_ids = agent_execution_graph.get('nodes', [])
+        edges = agent_execution_graph.get('edges', [])
         
         if not agent_ids:
             logger.warning(f"Playbook has no agents configured")
@@ -134,9 +120,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'tenant_id': tenant_id,
             'domain_id': domain_id,
             'playbook_type': playbook_type,
-            'playbook_id': playbook.get('playbook_id'),
+            'agent_execution_graph': agent_execution_graph,
             'agent_ids': agent_ids,
-            'description': playbook.get('description', ''),
             'status': 'success'
         }
         

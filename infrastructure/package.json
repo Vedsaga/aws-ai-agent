@@ -16,7 +16,12 @@
     "seed-data": "./scripts/seed-data.sh",
     "smoke-test": "./scripts/smoke-test.sh"
   },
-  "keywords": ["aws", "cdk", "multi-agent", "orchestration"],
+  "keywords": [
+    "aws",
+    "cdk",
+    "multi-agent",
+    "orchestration"
+  ],
   "author": "",
   "license": "MIT",
   "devDependencies": {
@@ -25,7 +30,9 @@
     "typescript": "^5.3.0"
   },
   "dependencies": {
+    "@aws-cdk/aws-lambda-python-alpha": "^2.220.0-alpha.0",
     "aws-cdk-lib": "^2.100.0",
-    "constructs": "^10.3.0"
+    "constructs": "^10.3.0",
+    "dotenv": "^17.2.3"
   }
 }

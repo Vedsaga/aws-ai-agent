@@ -25,13 +25,16 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     Lambda authorizer for API Gateway.
     Validates JWT token from Cognito and extracts tenant_id.
+    
+    IMPORTANT: To return 401, we must raise an exception with "Unauthorized" in the message.
+    Returning a Deny policy results in 403 Forbidden.
     """
     try:
         # Extract token from Authorization header
         token = extract_token(event)
         
         if not token:
-            logger.error("No token found in request")
+            logger.error("No token found in request - raising Unauthorized exception")
             raise Exception('Unauthorized')
         
         # Verify and decode JWT token
@@ -44,11 +47,21 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         
         logger.info(f"Authorized user: {username}, tenant: {tenant_id}")
         
+        # Generate IAM policy with wildcard to allow all methods
+        # Convert methodArn like "arn:aws:execute-api:region:account:api-id/stage/method/resource"
+        # to "arn:aws:execute-api:region:account:api-id/stage/*/*" to allow all methods
+        method_arn = event['methodArn']
+        arn_parts = method_arn.split('/')
+        # Keep everything up to and including the stage, then add wildcard
+        resource_arn = '/'.join(arn_parts[:2]) + '/*/*'
+        
+        logger.info(f"Generating policy for resource: {resource_arn}")
+        
         # Generate IAM policy
         policy = generate_policy(
             principal_id=user_id,
             effect='Allow',
-            resource=event['methodArn'],
+            resource=resource_arn,
             context={
                 'userId': user_id,
                 'tenantId': tenant_id,
@@ -56,16 +69,20 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             }
         )
         
+        logger.info(f"Returning Allow policy for user: {username}")
         return policy
         
-    except jwt.ExpiredSignatureError:
-        logger.error("Token has expired")
-        raise Exception('Unauthorized: Token expired')
+    except jwt.ExpiredSignatureError as e:
+        logger.error(f"Token has expired: {str(e)} - raising Unauthorized exception")
+        raise Exception('Unauthorized')
     except jwt.InvalidTokenError as e:
-        logger.error(f"Invalid token: {str(e)}")
-        raise Exception('Unauthorized: Invalid token')
+        logger.error(f"Invalid token error: {str(e)} - raising Unauthorized exception")
+        raise Exception('Unauthorized')
     except Exception as e:
-        logger.error(f"Authorization error: {str(e)}")
+        # Check if it's already an Unauthorized exception
+        if 'Unauthorized' in str(e):
+            raise
+        logger.error(f"Authorization error: {str(e)} - raising Unauthorized exception", exc_info=True)
         raise Exception('Unauthorized')
 
 
@@ -75,12 +92,16 @@ def extract_token(event: Dict[str, Any]) -> str:
                   event.get('headers', {}).get('authorization')
     
     if not auth_header:
+        logger.warning("No Authorization header found")
         return None
     
     # Remove 'Bearer ' prefix if present
     if auth_header.startswith('Bearer '):
-        return auth_header[7:]
+        token = auth_header[7:]
+        logger.info(f"EXTRACTED TOKEN: {token[:20]}...")
+        return token
     
+    logger.info(f"EXTRACTED TOKEN (no Bearer): {auth_header[:20]}...")
     return auth_header
 
 

@@ -16,13 +16,17 @@ export class DataStack extends cdk.Stack {
   public readonly userSessionsTable: dynamodb.Table;
   public readonly toolCatalogTable: dynamodb.Table;
   public readonly toolPermissionsTable: dynamodb.Table;
+  public readonly reportsTable: dynamodb.Table;
+  public readonly sessionsTable: dynamodb.Table;
+  public readonly messagesTable: dynamodb.Table;
+  public readonly queryJobsTable: dynamodb.Table;
   // OpenSearch removed for demo - not critical for agent configuration features
   // public readonly openSearchDomain: opensearch.Domain;
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // Create simplified VPC for demo (no NAT Gateway, no VPC Endpoints)
+    // Create simplified VPC for demo (no NAT Gateway, but with VPC Endpoints)
     // Using public subnets for RDS to avoid OpenSearch VPC issues
     this.vpc = new ec2.Vpc(this, 'Vpc', {
       vpcName: `${id}-Vpc`,
@@ -35,6 +39,11 @@ export class DataStack extends cdk.Stack {
           subnetType: ec2.SubnetType.PUBLIC,
         },
       ],
+    });
+
+    // Add VPC Endpoints for AWS services (Lambda in VPC needs these to access AWS APIs)
+    this.vpc.addInterfaceEndpoint('SecretsManagerEndpoint', {
+      service: ec2.InterfaceVpcEndpointAwsService.SECRETS_MANAGER,
     });
 
     // Create database credentials secret
@@ -78,6 +87,13 @@ export class DataStack extends cdk.Stack {
 
     // Expose as database property for compatibility
     this.database = cluster as any;
+    
+    // Allow connections from within the VPC
+    cluster.connections.allowFrom(
+      ec2.Peer.ipv4(this.vpc.vpcCidrBlock),
+      ec2.Port.tcp(5432),
+      'Allow PostgreSQL access from within VPC'
+    );
 
     // Create Lambda function to initialize database schema
     // Create psycopg2 Lambda layer
@@ -93,7 +109,7 @@ export class DataStack extends cdk.Stack {
       handler: 'db_init.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../../lambda/db-init')),
       layers: [psycopg2Layer],
-      timeout: cdk.Duration.minutes(5),
+      timeout: cdk.Duration.minutes(10),
       memorySize: 512,
       vpc: this.vpc,
       vpcSubnets: {
@@ -112,6 +128,33 @@ export class DataStack extends cdk.Stack {
     // Grant database access to init function
     this.database.connections.allowFrom(dbInitFunction, ec2.Port.tcp(5432));
     this.databaseSecret.grantRead(dbInitFunction);
+
+    // Create verification Lambda function
+    const dbVerifyFunction = new lambda.Function(this, 'DbVerifyFunction', {
+      functionName: `${id}-DbVerify`,
+      runtime: lambda.Runtime.PYTHON_3_11,
+      handler: 'verify_seed.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../lambda/db-init')),
+      layers: [psycopg2Layer],
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 512,
+      vpc: this.vpc,
+      vpcSubnets: {
+        subnetType: ec2.SubnetType.PUBLIC,
+      },
+      allowPublicSubnet: true,
+      environment: {
+        DB_SECRET_ARN: this.databaseSecret.secretArn,
+        DB_HOST: (this.database as any).clusterEndpoint.hostname,
+        DB_PORT: '5432',
+        DB_NAME: 'multi_agent_orchestration',
+      },
+      description: 'Verifies database seeding by querying builtin agents and domains',
+    });
+
+    // Grant database access to verify function
+    this.database.connections.allowFrom(dbVerifyFunction, ec2.Port.tcp(5432));
+    this.databaseSecret.grantRead(dbVerifyFunction);
 
     // DynamoDB Tables
 
@@ -205,7 +248,7 @@ export class DataStack extends cdk.Stack {
     });
 
     // 5. Reports Table - Core data documents for ingestion and management
-    const reportsTable = new dynamodb.Table(this, 'ReportsTable', {
+    this.reportsTable = new dynamodb.Table(this, 'ReportsTable', {
       tableName: `${id}-Reports`,
       partitionKey: {
         name: 'incident_id',
@@ -220,7 +263,7 @@ export class DataStack extends cdk.Stack {
     });
 
     // GSI for tenant-domain queries
-    reportsTable.addGlobalSecondaryIndex({
+    this.reportsTable.addGlobalSecondaryIndex({
       indexName: 'tenant-domain-index',
       partitionKey: {
         name: 'tenant_id',
@@ -233,7 +276,7 @@ export class DataStack extends cdk.Stack {
     });
 
     // GSI for domain-created queries
-    reportsTable.addGlobalSecondaryIndex({
+    this.reportsTable.addGlobalSecondaryIndex({
       indexName: 'domain-created-index',
       partitionKey: {
         name: 'domain_id',
@@ -246,7 +289,7 @@ export class DataStack extends cdk.Stack {
     });
 
     // 6. Sessions Table - Chat conversation contexts
-    const sessionsTable = new dynamodb.Table(this, 'SessionsTable', {
+    this.sessionsTable = new dynamodb.Table(this, 'SessionsTable', {
       tableName: `${id}-Sessions`,
       partitionKey: {
         name: 'session_id',
@@ -258,7 +301,7 @@ export class DataStack extends cdk.Stack {
     });
 
     // GSI for user-activity queries
-    sessionsTable.addGlobalSecondaryIndex({
+    this.sessionsTable.addGlobalSecondaryIndex({
       indexName: 'user-activity-index',
       partitionKey: {
         name: 'user_id',
@@ -271,7 +314,7 @@ export class DataStack extends cdk.Stack {
     });
 
     // 7. Messages Table - Chat messages with grounding references
-    const messagesTable = new dynamodb.Table(this, 'MessagesTable', {
+    this.messagesTable = new dynamodb.Table(this, 'MessagesTable', {
       tableName: `${id}-Messages`,
       partitionKey: {
         name: 'message_id',
@@ -283,7 +326,7 @@ export class DataStack extends cdk.Stack {
     });
 
     // GSI for session-timestamp queries
-    messagesTable.addGlobalSecondaryIndex({
+    this.messagesTable.addGlobalSecondaryIndex({
       indexName: 'session-timestamp-index',
       partitionKey: {
         name: 'session_id',
@@ -296,7 +339,7 @@ export class DataStack extends cdk.Stack {
     });
 
     // 8. QueryJobs Table - Query execution tracking with results
-    const queryJobsTable = new dynamodb.Table(this, 'QueryJobsTable', {
+    this.queryJobsTable = new dynamodb.Table(this, 'QueryJobsTable', {
       tableName: `${id}-QueryJobs`,
       partitionKey: {
         name: 'query_id',
@@ -308,7 +351,7 @@ export class DataStack extends cdk.Stack {
     });
 
     // GSI for session-created queries
-    queryJobsTable.addGlobalSecondaryIndex({
+    this.queryJobsTable.addGlobalSecondaryIndex({
       indexName: 'session-created-index',
       partitionKey: {
         name: 'session_id',
@@ -341,6 +384,30 @@ export class DataStack extends cdk.Stack {
       value: this.configurationsTable.tableName,
       description: 'Configurations DynamoDB Table Name',
       exportName: `${id}-ConfigurationsTableName`,
+    });
+
+    new cdk.CfnOutput(this, 'ReportsTableName', {
+      value: this.reportsTable.tableName,
+      description: 'Reports DynamoDB Table Name',
+      exportName: `${id}-ReportsTableName`,
+    });
+
+    new cdk.CfnOutput(this, 'SessionsTableName', {
+      value: this.sessionsTable.tableName,
+      description: 'Sessions DynamoDB Table Name',
+      exportName: `${id}-SessionsTableName`,
+    });
+
+    new cdk.CfnOutput(this, 'MessagesTableName', {
+      value: this.messagesTable.tableName,
+      description: 'Messages DynamoDB Table Name',
+      exportName: `${id}-MessagesTableName`,
+    });
+
+    new cdk.CfnOutput(this, 'QueryJobsTableName', {
+      value: this.queryJobsTable.tableName,
+      description: 'QueryJobs DynamoDB Table Name',
+      exportName: `${id}-QueryJobsTableName`,
     });
 
     // OpenSearch output removed - not deployed in demo version

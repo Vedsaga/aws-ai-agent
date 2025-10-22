@@ -86,7 +86,7 @@ export class OrchestrationStack extends cdk.Stack {
       OPENSEARCH_ENDPOINT: props.opensearchEndpoint,
       EVENT_BUS_NAME: props.eventBusName,
       // Bedrock model configuration from environment variables
-      BEDROCK_DEFAULT_MODEL: process.env.BEDROCK_DEFAULT_MODEL || 'anthropic.claude-3-sonnet-20240229-v1:0',
+      BEDROCK_DEFAULT_MODEL: process.env.BEDROCK_DEFAULT_MODEL || 'amazon.nova-lite-v1:0',
       BEDROCK_AGENT_MODEL: process.env.BEDROCK_AGENT_MODEL || 'amazon.nova-micro-v1:0',
       BEDROCK_ORCHESTRATOR_MODEL: process.env.BEDROCK_ORCHESTRATOR_MODEL || 'amazon.nova-pro-v1:0',
       BEDROCK_EMBEDDING_MODEL: process.env.BEDROCK_EMBEDDING_MODEL || 'amazon.titan-embed-text-v1',

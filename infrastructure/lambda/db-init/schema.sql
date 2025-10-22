@@ -107,56 +107,9 @@ CREATE INDEX IF NOT EXISTS idx_domains_tenant
 ON domain_configurations(tenant_id);
 
 -- ============================================================================
--- Legacy Tables (Backward Compatibility)
+-- Note: Legacy incidents and image_evidence tables removed
+-- All reports are now stored in DynamoDB for better scalability
 -- ============================================================================
-
--- Incidents table: Legacy table for backward compatibility
--- New reports will be stored in DynamoDB
-CREATE TABLE IF NOT EXISTS incidents (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id UUID NOT NULL,
-    domain_id VARCHAR(100) NOT NULL,
-    raw_text TEXT NOT NULL,
-    structured_data JSONB NOT NULL,
-    location GEOGRAPHY(POINT, 4326),
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW(),
-    created_by UUID NOT NULL,
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id)
-);
-
--- Indexes for incidents
-CREATE INDEX IF NOT EXISTS idx_incidents_tenant_domain 
-ON incidents(tenant_id, domain_id);
-
-CREATE INDEX IF NOT EXISTS idx_incidents_created_at 
-ON incidents(created_at DESC);
-
-CREATE INDEX IF NOT EXISTS idx_incidents_structured_data 
-ON incidents USING GIN(structured_data);
-
-CREATE INDEX IF NOT EXISTS idx_incidents_location 
-ON incidents USING GIST(location);
-
--- Image Evidence table: S3 references for incident images
-CREATE TABLE IF NOT EXISTS image_evidence (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    incident_id UUID REFERENCES incidents(id) ON DELETE CASCADE,
-    tenant_id UUID NOT NULL,
-    s3_key VARCHAR(500) NOT NULL,
-    s3_bucket VARCHAR(200) NOT NULL,
-    content_type VARCHAR(100),
-    file_size_bytes INTEGER,
-    uploaded_at TIMESTAMP DEFAULT NOW(),
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id)
-);
-
--- Indexes for image_evidence
-CREATE INDEX IF NOT EXISTS idx_image_evidence_incident 
-ON image_evidence(incident_id);
-
-CREATE INDEX IF NOT EXISTS idx_image_evidence_tenant 
-ON image_evidence(tenant_id);
 
 -- ============================================================================
 -- Triggers
@@ -202,21 +155,18 @@ BEFORE UPDATE ON domain_configurations
 FOR EACH ROW
 EXECUTE FUNCTION update_updated_at_column();
 
-DROP TRIGGER IF EXISTS update_incidents_updated_at ON incidents;
-CREATE TRIGGER update_incidents_updated_at
-BEFORE UPDATE ON incidents
-FOR EACH ROW
-EXECUTE FUNCTION update_updated_at_column();
+-- Incidents table removed - no trigger needed
 
 -- ============================================================================
 -- Notes
 -- ============================================================================
 
 -- DynamoDB Tables (not in RDS):
--- - Reports: High-volume report documents with flexible schema
+-- - Reports: High-volume report documents with flexible schema (replaces incidents table)
 -- - Sessions: Chat session metadata
 -- - Messages: Chat messages with references
 -- - QueryJobs: Query execution results and logs
+-- - Image evidence: S3 references stored in report metadata
 
 -- Standard Metadata Fields:
 -- All primary objects include:

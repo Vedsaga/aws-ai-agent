@@ -1,10 +1,10 @@
 """
 Agent Invoker Lambda Function
 
-Routes execution to specific agents by ID, loads configuration from DynamoDB,
+Routes execution to specific agents by ID, loads configuration from RDS PostgreSQL,
 and handles agent timeouts and errors.
 
-Requirements: 7.3, 7.4
+Requirements: 7.3, 7.4, 8.1, 8.4
 """
 
 import json
@@ -13,28 +13,28 @@ import sys
 import boto3
 import logging
 from typing import Dict, Any, Optional
-from botocore.exceptions import ClientError
 
 # Add realtime module to path for status publishing
 sys.path.append(os.path.join(os.path.dirname(__file__), '../realtime'))
 from status_utils import publish_agent_status
+
+# Import RDS utilities
+from rds_utils import get_agent_by_id
 
 # Configure logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 # Initialize AWS clients
-dynamodb = boto3.resource('dynamodb')
 lambda_client = boto3.client('lambda')
 
 # Environment variables
-AGENT_CONFIGS_TABLE = os.environ.get('AGENT_CONFIGS_TABLE', 'agent_configs')
 AGENT_LAMBDA_PREFIX = os.environ.get('AGENT_LAMBDA_PREFIX', 'MultiAgentOrch-Agent-')
 
 
 def load_agent_config(tenant_id: str, agent_id: str) -> Dict[str, Any]:
     """
-    Load agent configuration from DynamoDB.
+    Load agent configuration from RDS PostgreSQL.
     
     Args:
         tenant_id: Tenant identifier
@@ -47,24 +47,18 @@ def load_agent_config(tenant_id: str, agent_id: str) -> Dict[str, Any]:
         ValueError: If agent config not found
     """
     try:
-        table = dynamodb.Table(AGENT_CONFIGS_TABLE)
-        response = table.get_item(
-            Key={
-                'tenant_id': tenant_id,
-                'agent_id': agent_id
-            }
-        )
+        # Get agent from RDS
+        config = get_agent_by_id(tenant_id, agent_id)
         
-        if 'Item' not in response:
+        if not config:
             raise ValueError(f"Agent config not found: {agent_id} for tenant {tenant_id}")
         
-        config = response['Item']
         logger.info(f"Loaded config for agent {agent_id}: {config.get('agent_name')}")
         
         return config
         
-    except ClientError as e:
-        logger.error(f"DynamoDB error loading agent config: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error loading agent config: {str(e)}")
         raise ValueError(f"Failed to load agent config: {str(e)}")
 
 
@@ -90,13 +84,14 @@ def invoke_agent_lambda(
     """
     agent_id = agent_config['agent_id']
     agent_name = agent_config.get('agent_name', agent_id)
-    agent_type = agent_config.get('agent_type', 'custom')
+    agent_class = agent_config.get('agent_class', 'custom')
+    is_inbuilt = agent_config.get('is_inbuilt', False)
     
-    # Determine Lambda function name based on agent type
-    if agent_type == 'ingestion':
+    # Determine Lambda function name based on agent class and builtin status
+    if is_inbuilt and agent_class == 'ingestion':
         # Built-in ingestion agents (geo, temporal, entity)
         lambda_name = f"{AGENT_LAMBDA_PREFIX}{agent_name.replace(' ', '')}"
-    elif agent_type == 'query':
+    elif is_inbuilt and agent_class == 'query':
         # Built-in query agents (interrogative-based)
         lambda_name = f"{AGENT_LAMBDA_PREFIX}Query-{agent_name.replace(' ', '')}"
     else:

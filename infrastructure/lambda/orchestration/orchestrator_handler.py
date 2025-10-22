@@ -31,6 +31,34 @@ except ImportError as e:
     def publish_agent_status(*args, **kwargs):
         return False
 
+# Import RDS utilities for data retrieval and agent/domain loading
+try:
+    from rds_utils import (
+        get_incidents_for_query, 
+        extract_incident_ids,
+        get_domain_by_id,
+        get_playbook,
+        get_agents_by_ids
+    )
+    print("RDS utils loaded successfully")
+except ImportError as e:
+    print(f"Warning: rds_utils not available: {e}")
+    
+    def get_incidents_for_query(*args, **kwargs):
+        return []
+    
+    def extract_incident_ids(*args, **kwargs):
+        return []
+    
+    def get_domain_by_id(*args, **kwargs):
+        return None
+    
+    def get_playbook(*args, **kwargs):
+        return None
+    
+    def get_agents_by_ids(*args, **kwargs):
+        return {}
+
 
 # Initialize AWS clients
 dynamodb = boto3.resource("dynamodb")
@@ -45,6 +73,9 @@ CONFIGURATIONS_TABLE = os.environ.get(
 )
 INCIDENTS_TABLE = os.environ.get(
     "INCIDENTS_TABLE", "MultiAgentOrchestration-dev-Incidents"
+)
+QUERY_JOBS_TABLE = os.environ.get(
+    "QUERY_JOBS_TABLE", "MultiAgentOrchestration-dev-QueryJobs"
 )
 
 # Model configurations - use lighter models for individual agents, complex for orchestration
@@ -145,6 +176,12 @@ except Exception as e:
     print(f"Warning: Could not initialize incidents table: {e}")
     incidents_table = None
 
+try:
+    query_jobs_table = dynamodb.Table(QUERY_JOBS_TABLE)
+except Exception as e:
+    print(f"Warning: Could not initialize query jobs table: {e}")
+    query_jobs_table = None
+
 
 def handler(event, context):
     """
@@ -181,6 +218,8 @@ def process_job(job_data: Dict[str, Any]):
     text = job_data.get("text") or job_data.get("question")
     tenant_id = job_data.get("tenant_id", "default-tenant")
     user_id = job_data.get("user_id", "demo-user")
+    query_id = job_data.get("query_id")  # For query jobs
+    incident_id = job_data.get("incident_id")  # For ingestion jobs
 
     print(f"Processing job: {job_id}, type: {job_type}, domain: {domain_id}")
 
@@ -193,21 +232,36 @@ def process_job(job_data: Dict[str, Any]):
             status="loading_agents",
             message=f"Loading agent configuration for domain: {domain_id}",
         )
-        # Step 1: Load domain configuration
-        domain_config = load_domain_config(domain_id)
-        if not domain_config:
-            print(f"Domain not found: {domain_id}, using default agents")
+        # Step 1: Load domain from RDS
+        print(f"Loading domain from RDS: {domain_id}, tenant: {tenant_id}")
+        domain = get_domain_by_id(tenant_id, domain_id)
+        
+        if not domain:
+            print(f"Domain not found in RDS: {domain_id}, using fallback")
+            # Use fallback for backward compatibility
             domain_config = get_default_domain_config(job_type)
-
-        # Step 2: Get agent list based on job type
-        if job_type == "ingest":
-            agent_ids = domain_config.get(
-                "ingest_agent_ids", ["geo_agent", "temporal_agent"]
-            )
+            agent_ids = domain_config.get("ingest_agent_ids" if job_type == "ingest" else "query_agent_ids", [])
         else:
-            agent_ids = domain_config.get(
-                "query_agent_ids", ["what_agent", "where_agent", "when_agent"]
-            )
+            # Step 2: Get playbook from domain based on job type
+            playbook_type_map = {
+                'ingest': 'ingestion',
+                'query': 'query',
+                'management': 'management'
+            }
+            playbook_type = playbook_type_map.get(job_type, 'query')
+            
+            print(f"Loading {playbook_type} playbook for domain: {domain_id}")
+            playbook = get_playbook(tenant_id, domain_id, playbook_type)
+            
+            if not playbook:
+                print(f"Playbook not found, using fallback")
+                domain_config = get_default_domain_config(job_type)
+                agent_ids = domain_config.get("ingest_agent_ids" if job_type == "ingest" else "query_agent_ids", [])
+            else:
+                # Extract agent IDs from playbook
+                agent_execution_graph = playbook.get('agent_execution_graph', {})
+                agent_ids = agent_execution_graph.get('nodes', [])
+                print(f"Loaded agent IDs from playbook: {agent_ids}")
 
         print(f"Agent pipeline: {agent_ids}")
 
@@ -221,12 +275,38 @@ def process_job(job_data: Dict[str, Any]):
             metadata={"agent_count": len(agent_ids), "agents": agent_ids},
         )
 
-        # Step 3: Load agent configurations
+        # Step 3: Load agent configurations from RDS
+        print(f"Loading {len(agent_ids)} agents from RDS")
+        agents_dict = get_agents_by_ids(tenant_id, agent_ids)
+        
+        # Convert dict to list and add fallback for missing agents
         agents = []
         for agent_id in agent_ids:
-            agent_config = load_agent_config(agent_id)
-            if agent_config:
+            if agent_id in agents_dict:
+                agent_config = agents_dict[agent_id]
+                # Ensure agent_id is set
+                agent_config['agent_id'] = agent_id
                 agents.append(agent_config)
+                print(f"Loaded agent from RDS: {agent_id}")
+            else:
+                # Fallback: create basic config for missing agents
+                print(f"Agent not found in RDS, using fallback: {agent_id}")
+                agent_config = create_fallback_agent_config(agent_id)
+                agents.append(agent_config)
+
+        # Step 3.5: For query jobs, fetch relevant incidents from database
+        incidents_data = []
+        incident_references = []
+        if job_type in ["query", "management"]:
+            print(f"Fetching incidents for query analysis from domain: {domain_id}")
+            incidents_data = get_incidents_for_query(
+                tenant_id=tenant_id,
+                domain_id=domain_id,
+                limit=20  # Fetch last 20 incidents for analysis
+            )
+            incident_references = extract_incident_ids(incidents_data)
+            print(f"Retrieved {len(incidents_data)} incidents for analysis")
+            print(f"Incident references: {incident_references[:5]}...")  # Log first 5
 
         # Step 4: Build execution plan (handle dependencies)
         execution_plan = build_execution_plan(agents)
@@ -234,6 +314,8 @@ def process_job(job_data: Dict[str, Any]):
 
         # Step 5: Execute agents in order
         results = {}
+        all_incident_references = set()  # Collect all incident references from agents
+        
         for idx, agent in enumerate(execution_plan):
             agent_id = agent["agent_id"]
 
@@ -252,9 +334,17 @@ def process_job(job_data: Dict[str, Any]):
             if agent.get("dependency_parent"):
                 parent_output = results.get(agent["dependency_parent"])
 
-            # Execute agent
+            # Execute agent with incident data for query jobs
             start_time = datetime.utcnow()
-            result = execute_agent(agent, text, parent_output)
+            if job_type in ["query", "management"] and incidents_data:
+                # Pass incidents as context for query agents
+                result = execute_agent(agent, text, parent_output, incidents=incidents_data)
+                
+                # Collect incident references from this agent
+                if "incident_references" in result:
+                    all_incident_references.update(result["incident_references"])
+            else:
+                result = execute_agent(agent, text, parent_output)
             execution_time = int(
                 (datetime.utcnow() - start_time).total_seconds() * 1000
             )
@@ -306,8 +396,12 @@ def process_job(job_data: Dict[str, Any]):
             message="Saving results to database",
         )
 
+        # Use collected references from agents, fallback to pre-fetched list
+        final_references = list(all_incident_references) if all_incident_references else incident_references
+        print(f"Final incident references: {len(final_references)} incidents")
+        
         save_results(
-            job_id, job_type, domain_id, tenant_id, text, verified_results, summary
+            job_id, job_type, domain_id, tenant_id, text, verified_results, summary, final_references, query_id, incident_id
         )
 
         # Publish completion status
@@ -341,78 +435,42 @@ def process_job(job_data: Dict[str, Any]):
         return {"status": "failed", "job_id": job_id, "error": str(e)}
 
 
-def load_domain_config(domain_id: str) -> Optional[Dict[str, Any]]:
-    """Load domain configuration from DynamoDB"""
-    try:
-        # Try to find domain in system tenant
-        response = config_table.get_item(
-            Key={"tenant_id": "system", "config_key": f"DOMAIN#{domain_id}"}
-        )
-
-        if "Item" in response:
-            return response["Item"]
-
-        # Try default-tenant
-        response = config_table.get_item(
-            Key={"tenant_id": "default-tenant", "config_key": f"domain_{domain_id}"}
-        )
-
-        if "Item" in response:
-            return response["Item"]
-
-        return None
-
-    except Exception as e:
-        print(f"Error loading domain config: {e}")
-        return None
+# Removed: load_domain_config() - now using get_domain_by_id() from rds_utils
 
 
 def get_default_domain_config(job_type: str) -> Dict[str, Any]:
-    """Return default agent configuration"""
+    """Return default agent configuration with CORRECT builtin agent IDs"""
     if job_type == "ingest":
         return {
             "domain_id": "default",
-            "ingest_agent_ids": ["geo_agent", "temporal_agent", "category_agent"],
+            "ingest_agent_ids": [
+                "builtin-ingestion-geo",
+                "builtin-ingestion-temporal",
+                "builtin-ingestion-entity"
+            ],
         }
-    else:
+    elif job_type == "management":
         return {
             "domain_id": "default",
-            "query_agent_ids": ["what_agent", "where_agent", "when_agent"],
+            "query_agent_ids": [
+                "builtin-management-task-assigner",
+                "builtin-management-status-updater",
+                "builtin-management-task-details-editor"
+            ],
+        }
+    else:  # query
+        return {
+            "domain_id": "default",
+            "query_agent_ids": [
+                "builtin-query-who",
+                "builtin-query-what",
+                "builtin-query-where",
+                "builtin-query-when"
+            ],
         }
 
 
-def load_agent_config(agent_id: str) -> Optional[Dict[str, Any]]:
-    """Load agent configuration from DynamoDB"""
-    try:
-        # Try system tenant first
-        response = config_table.query(
-            IndexName="ConfigTypeIndex",
-            KeyConditionExpression="config_type = :type",
-            FilterExpression="agent_id = :agent_id",
-            ExpressionAttributeValues={":type": "agent_config", ":agent_id": agent_id},
-            Limit=1,
-        )
-
-        if response.get("Items"):
-            return response["Items"][0]
-
-        # Try by config_key pattern
-        for tenant in ["system", "default-tenant"]:
-            try:
-                response = config_table.get_item(
-                    Key={"tenant_id": tenant, "config_key": agent_id}
-                )
-                if "Item" in response:
-                    return response["Item"]
-            except:
-                pass
-
-        # Fallback: create basic config
-        return create_fallback_agent_config(agent_id)
-
-    except Exception as e:
-        print(f"Error loading agent {agent_id}: {e}")
-        return create_fallback_agent_config(agent_id)
+# Removed: load_agent_config() - now using get_agents_by_ids() from rds_utils
 
 
 def create_fallback_agent_config(agent_id: str) -> Dict[str, Any]:
@@ -516,37 +574,86 @@ def build_execution_plan(agents: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def execute_agent(
-    agent: Dict[str, Any], text: str, parent_output: Optional[Dict] = None
+    agent: Dict[str, Any], text: str, parent_output: Optional[Dict] = None, incidents: Optional[List[Dict]] = None
 ) -> Dict[str, Any]:
     """
     Execute a single agent using AWS Bedrock
+    
+    Args:
+        agent: Agent configuration from RDS (agent_definitions table)
+        text: User question or text to analyze
+        parent_output: Output from parent agent (if any)
+        incidents: List of incident data for query agents to analyze
     """
-    agent_id = agent["agent_id"]
-    system_prompt = agent.get(
-        "system_prompt", "Extract relevant information from the text."
-    )
+    agent_id = agent.get("agent_id")
+    
+    # Get system prompt from RDS agent config
+    system_prompt = agent.get("system_prompt", "Extract relevant information from the text.")
+    
+    # Log agent execution
+    print(f"Executing agent: {agent_id}")
+    print(f"Agent name: {agent.get('agent_name', 'Unknown')}")
+    print(f"Agent class: {agent.get('agent_class', 'Unknown')}")
 
     try:
         # Build prompt
-        user_prompt = f"Text to analyze: {text}\n\n"
+        user_prompt = f"Question: {text}\n\n"
 
         if parent_output:
             user_prompt += f"Parent agent output: {json.dumps(parent_output)}\n\n"
 
-        user_prompt += "Please analyze the text and return your response as valid JSON."
+        # Add incident data for query agents
+        incident_id_map = {}  # Map index to incident_id for reference tracking
+        if incidents and len(incidents) > 0:
+            user_prompt += f"Analyze the following {len(incidents)} incidents to answer the question:\n\n"
+            # Include first 10 incidents to avoid token limits
+            for idx, incident in enumerate(incidents[:10], 1):
+                incident_id = incident.get('incident_id', f'unknown-{idx}')
+                incident_id_map[idx] = incident_id
+                
+                incident_text = incident.get('raw_text', '')[:200]  # Limit text length
+                structured = incident.get('structured_data', {})
+                created_at = incident.get('created_at', '')
+                
+                user_prompt += f"Incident #{idx} (ID: {incident_id}):\n"
+                user_prompt += f"- Text: {incident_text}\n"
+                if structured:
+                    user_prompt += f"- Category: {structured.get('category', 'N/A')}\n"
+                    user_prompt += f"- Location: {structured.get('location', 'N/A')}\n"
+                user_prompt += f"- Date: {created_at}\n\n"
+            
+            if len(incidents) > 10:
+                user_prompt += f"(Plus {len(incidents) - 10} more incidents not shown)\n\n"
+            
+            user_prompt += "\nIMPORTANT: In your response, include a 'references' field listing the incident numbers (e.g., [1, 3, 5]) that you used to formulate your answer.\n"
+
+        user_prompt += "Please analyze the data and return your response as valid JSON."
 
         # Call Bedrock - use environment variable or default
         model_id = os.environ.get('BEDROCK_DEFAULT_MODEL', 
                                   'anthropic.claude-3-haiku-20240307-v1:0')
 
-        request_body = {
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 1024,
-            "temperature": 0.1,
-            "messages": [
-                {"role": "user", "content": f"{system_prompt}\n\n{user_prompt}"}
-            ],
-        }
+        # Check if using Nova model (different format)
+        if "nova" in model_id.lower():
+            request_body = {
+                "messages": [
+                    {"role": "user", "content": [{"text": f"{system_prompt}\n\n{user_prompt}"}]}
+                ],
+                "inferenceConfig": {
+                    "maxTokens": 1024,
+                    "temperature": 0.1
+                }
+            }
+        else:
+            # Claude format
+            request_body = {
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": 1024,
+                "temperature": 0.1,
+                "messages": [
+                    {"role": "user", "content": f"{system_prompt}\n\n{user_prompt}"}
+                ],
+            }
 
         print(f"Calling Bedrock for {agent_id}...")
 
@@ -558,7 +665,14 @@ def execute_agent(
         )
 
         response_body = json.loads(response["body"].read())
-        content = response_body["content"][0]["text"]
+        
+        # Handle different response formats
+        if "nova" in model_id.lower():
+            # Nova format
+            content = response_body["output"]["message"]["content"][0]["text"]
+        else:
+            # Claude format
+            content = response_body["content"][0]["text"]
 
         # Try to parse JSON from response
         try:
@@ -578,6 +692,16 @@ def execute_agent(
 
             result["agent_id"] = agent_id
             result["raw_response"] = content
+            
+            # Extract and convert incident references
+            if incidents and "references" in result:
+                # Convert incident numbers to actual incident IDs
+                incident_refs = []
+                for ref_num in result.get("references", []):
+                    if isinstance(ref_num, int) and ref_num in incident_id_map:
+                        incident_refs.append(incident_id_map[ref_num])
+                result["incident_references"] = incident_refs
+                print(f"Agent {agent_id} referenced {len(incident_refs)} incidents: {incident_refs[:3]}...")
 
             return result
 
@@ -914,15 +1038,50 @@ def save_results(
     text: str,
     verified_results: Dict[str, Any],
     summary: str,
+    incident_references: List[str] = None,
+    query_id: str = None,
+    incident_id: str = None,
 ):
     """
-    Save processed results to DynamoDB
+    Save processed results to DynamoDB with incident references
+    
+    Args:
+        incident_references: List of incident IDs that were used to generate the response
+        query_id: Query ID for query/management jobs
     """
-    if not incidents_table:
-        print("Warning: Incidents table not available, skipping save")
-        return
-
+    
     try:
+        # For ingestion jobs, update the Reports table
+        if job_type == "ingest":
+            if not incident_id:
+                print("Warning: No incident_id for ingestion job, cannot update report")
+                return
+            
+            # Get Reports table
+            reports_table_name = os.environ.get("REPORTS_TABLE", "MultiAgentOrchestration-dev-Data-Reports")
+            reports_table = dynamodb.Table(reports_table_name)
+            
+            # Update the report with ingestion_data
+            ingestion_data = convert_floats_to_decimal(verified_results["agent_results"])
+            
+            reports_table.update_item(
+                Key={"incident_id": incident_id},
+                UpdateExpression="SET ingestion_data = :data, #status = :status, updated_at = :updated",
+                ExpressionAttributeNames={"#status": "status"},
+                ExpressionAttributeValues={
+                    ":data": ingestion_data,
+                    ":status": "completed",
+                    ":updated": datetime.utcnow().isoformat()
+                }
+            )
+            print(f"Updated Reports table for incident {incident_id} with ingestion data")
+            return
+        
+        # For query/management jobs, save to Incidents table
+        if not incidents_table:
+            print("Warning: Incidents table not available, skipping save")
+            return
+            
         item = {
             "incident_id"
             if job_type == "ingest"
@@ -938,6 +1097,7 @@ def save_results(
                 "clarification_questions", []
             ),
             "summary": summary,
+            "references_used": incident_references or [],  # Add references
             "status": "completed",
             "processed_at": datetime.utcnow().isoformat(),
             "job_type": job_type,
@@ -947,7 +1107,39 @@ def save_results(
         item = convert_floats_to_decimal(item)
 
         incidents_table.put_item(Item=item)
-        print(f"Results saved for job {job_id}")
+        print(f"Results saved to incidents table for job {job_id}")
+        
+        # For query jobs, also update the QueryJobs table with results and references
+        if job_type in ["query", "management"] and query_jobs_table and query_id:
+            try:
+                
+                # Build execution log from agent results
+                execution_log = []
+                for agent_id, result in verified_results.get("agent_results", {}).items():
+                    execution_log.append({
+                        "agent_id": agent_id,
+                        "output": result,
+                        "confidence": result.get("confidence", 0.5)
+                    })
+                
+                # Update query with results and references
+                update_expr = "SET summary = :summary, execution_log = :log, references_used = :refs, #status = :status, updated_at = :updated"
+                
+                query_jobs_table.update_item(
+                    Key={"query_id": query_id},
+                    UpdateExpression=update_expr,
+                    ExpressionAttributeNames={"#status": "status"},
+                    ExpressionAttributeValues={
+                        ":summary": summary,
+                        ":log": execution_log,
+                        ":refs": incident_references or [],
+                        ":status": "completed",
+                        ":updated": datetime.utcnow().isoformat()
+                    }
+                )
+                print(f"Updated QueryJobs table with {len(incident_references or [])} references")
+            except Exception as query_error:
+                print(f"Warning: Could not update QueryJobs table: {query_error}")
 
     except Exception as e:
         print(f"Error saving results: {e}")

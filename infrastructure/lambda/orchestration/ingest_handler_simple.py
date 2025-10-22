@@ -1,6 +1,6 @@
 """
-Simplified Ingest API Handler - DynamoDB Only
-Handles report submission without complex agent orchestration
+Simplified Ingest API Handler - Reports Table
+Handles report submission using new Reports table structure
 """
 
 import json
@@ -9,42 +9,37 @@ import boto3
 from datetime import datetime
 import uuid
 import traceback
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 # Initialize AWS clients
 dynamodb = boto3.resource("dynamodb")
 lambda_client = boto3.client("lambda")
 
 # Environment variables with fallbacks
-INCIDENTS_TABLE = os.environ.get(
-    "INCIDENTS_TABLE", "MultiAgentOrchestration-dev-Data-Incidents"
+REPORTS_TABLE = os.environ.get(
+    "REPORTS_TABLE", "MultiAgentOrchestration-dev-Reports"
 )
 ORCHESTRATOR_FUNCTION = os.environ.get(
     "ORCHESTRATOR_FUNCTION", "MultiAgentOrchestration-dev-Orchestrator"
 )
 
-# Initialize DynamoDB table (create if doesn't exist)
+# RDS connection parameters
+DB_HOST = os.environ.get("DB_HOST", "")
+DB_NAME = os.environ.get("DB_NAME", "orchestration_db")
+DB_USER = os.environ.get("DB_USER", "postgres")
+DB_PASSWORD = os.environ.get("DB_PASSWORD", "")
+DB_PORT = int(os.environ.get("DB_PORT", "5432"))
+
+# Initialize DynamoDB table
 try:
-    incidents_table = dynamodb.Table(INCIDENTS_TABLE)
+    reports_table = dynamodb.Table(REPORTS_TABLE)
     # Test if table exists
-    incidents_table.table_status
-except dynamodb.meta.client.exceptions.ResourceNotFoundException:
-    print(f"Creating incidents table: {INCIDENTS_TABLE}")
-    try:
-        incidents_table = dynamodb.create_table(
-            TableName=INCIDENTS_TABLE,
-            KeySchema=[{"AttributeName": "incident_id", "KeyType": "HASH"}],
-            AttributeDefinitions=[
-                {"AttributeName": "incident_id", "AttributeType": "S"}
-            ],
-            BillingMode="PAY_PER_REQUEST",
-        )
-        print(f"Created incidents table: {INCIDENTS_TABLE}")
-    except Exception as e:
-        print(f"Error creating table: {e}")
-        incidents_table = None
+    reports_table.table_status
+    print(f"Initialized Reports table: {REPORTS_TABLE}")
 except Exception as e:
-    print(f"Warning: Could not initialize incidents table: {e}")
-    incidents_table = None
+    print(f"Warning: Could not initialize Reports table: {e}")
+    reports_table = None
 
 
 def handler(event, context):
@@ -96,64 +91,64 @@ def handler(event, context):
         # Generate job and incident IDs
         job_id = f"job_{uuid.uuid4().hex}"
         incident_id = f"inc_{uuid.uuid4().hex[:8]}"
+        report_id = str(uuid.uuid4())
 
         # Get optional fields
         images = body.get("images", [])
         source = body.get("source", "web")
-        priority = body.get("priority", "normal")
-        reporter_contact = body.get("reporter_contact")
 
         print(
-            f"Processing ingest: job_id={job_id}, domain={domain_id}, text_length={len(text)}"
+            f"Processing ingest: job_id={job_id}, incident_id={incident_id}, domain={domain_id}, text_length={len(text)}"
         )
 
-        # Create incident record
-        incident = {
+        # Load domain configuration to get ingestion_playbook
+        ingestion_playbook = load_ingestion_playbook(domain_id, tenant_id)
+        if not ingestion_playbook:
+            return error_response(404, f"Domain not found or has no ingestion playbook: {domain_id}")
+
+        # Create report document with standard metadata
+        timestamp = datetime.utcnow().isoformat()
+        report = {
             "incident_id": incident_id,
-            "job_id": job_id,
             "tenant_id": tenant_id,
             "domain_id": domain_id,
             "raw_text": text,
             "status": "processing",
-            "created_at": datetime.utcnow().isoformat(),
+            "ingestion_data": {},  # Will be populated by ingestion agents
+            "management_data": {},  # Will be populated by management agents
+            "id": report_id,
+            "created_at": timestamp,
+            "updated_at": timestamp,
             "created_by": user_id,
             "source": source,
-            "priority": priority,
         }
 
         # Add optional fields
         if images:
-            incident["images"] = images[:5]  # Limit to 5 images
+            report["images"] = images[:5]  # Limit to 5 images
 
-        if reporter_contact:
-            incident["reporter_contact"] = reporter_contact
+        # Store to DynamoDB Reports table
+        if not reports_table:
+            return error_response(500, "Reports table not available")
 
-        # Add placeholder structured data (will be populated by agents)
-        incident["structured_data"] = {
-            "processing_status": "pending",
-            "agents_executed": [],
-        }
+        try:
+            reports_table.put_item(Item=report)
+            print(f"Stored report: {incident_id}")
+        except Exception as e:
+            print(f"Error storing to DynamoDB: {e}")
+            return error_response(500, f"Failed to store report: {str(e)}")
 
-        # Store to DynamoDB
-        if incidents_table:
-            try:
-                incidents_table.put_item(Item=incident)
-                print(f"Stored incident: {incident_id}")
-            except Exception as e:
-                print(f"Error storing to DynamoDB: {e}")
-                return error_response(500, f"Failed to store incident: {str(e)}")
-        else:
-            # If table doesn't exist, still return success but log warning
-            print("WARNING: Incidents table not available, incident not stored")
-
-        # Trigger orchestrator Lambda asynchronously
+        # Trigger orchestrator Lambda asynchronously with ingestion_playbook
         try:
             orchestrator_payload = {
                 "job_id": job_id,
+                "job_type": "ingest",
                 "incident_id": incident_id,
                 "domain_id": domain_id,
                 "text": text,
                 "tenant_id": tenant_id,
+                "user_id": user_id,
+                "playbook": ingestion_playbook,  # Pass ingestion_playbook
             }
 
             lambda_client.invoke(
@@ -170,10 +165,10 @@ def handler(event, context):
         return success_response(
             {
                 "job_id": job_id,
+                "incident_id": incident_id,
                 "status": "accepted",
                 "message": "Report submitted for processing",
-                "timestamp": datetime.utcnow().isoformat(),
-                "estimated_completion_seconds": 30,
+                "timestamp": timestamp,
             },
             status_code=202,
         )
@@ -182,6 +177,70 @@ def handler(event, context):
         print(f"ERROR: {str(e)}")
         print(traceback.format_exc())
         return error_response(500, f"Internal server error: {str(e)}")
+
+
+def load_ingestion_playbook(domain_id: str, tenant_id: str):
+    """
+    Load ingestion_playbook from RDS domain_configurations table
+    Returns the playbook dict or None if not found
+    """
+    if not DB_HOST or not DB_PASSWORD:
+        print("Warning: RDS credentials not configured, using fallback")
+        return get_fallback_playbook()
+
+    conn = None
+    try:
+        # Connect to RDS
+        conn = psycopg2.connect(
+            host=DB_HOST,
+            database=DB_NAME,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            port=DB_PORT,
+            connect_timeout=5,
+        )
+
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Query domain configuration
+        cursor.execute(
+            """
+            SELECT ingestion_playbook
+            FROM domain_configurations
+            WHERE domain_id = %s AND tenant_id = %s
+            """,
+            (domain_id, tenant_id),
+        )
+
+        result = cursor.fetchone()
+
+        if result:
+            print(f"Loaded ingestion_playbook for domain: {domain_id}")
+            return result["ingestion_playbook"]
+        else:
+            print(f"Domain not found: {domain_id}, using fallback")
+            return get_fallback_playbook()
+
+    except Exception as e:
+        print(f"Error loading ingestion_playbook from RDS: {e}")
+        print(traceback.format_exc())
+        return get_fallback_playbook()
+
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_fallback_playbook():
+    """
+    Return a fallback ingestion playbook with basic agents
+    """
+    return {
+        "agent_execution_graph": {
+            "nodes": ["geo_agent", "temporal_agent", "category_agent"],
+            "edges": [],
+        }
+    }
 
 
 def extract_tenant_id(event):
