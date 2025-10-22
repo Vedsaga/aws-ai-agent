@@ -1,7 +1,7 @@
 #!/bin/bash
 
-echo "🧪 Testing Backend API"
-echo "====================="
+echo "🧪 Testing Backend API - All 3 Flows"
+echo "====================================="
 echo ""
 
 # Load API URL from .env
@@ -21,41 +21,81 @@ echo "API URL: $API_URL"
 echo ""
 
 # Test 1: Report ingestion
-echo "Test 1: Report Ingestion"
-echo "------------------------"
+echo "=== Test 1: Ingestion ==="
 RESPONSE=$(curl -s -X POST "${API_URL}orchestrate" \
   -H "Content-Type: application/json" \
   -d '{
     "mode": "ingestion",
-    "message": "Broken streetlight at 123 Main Street, very dark and dangerous",
-    "session_id": "test-session-1"
+    "message": "Graffiti on Main Street wall, needs cleanup",
+    "session_id": "test-1"
   }')
 
-echo "Response:"
-echo "$RESPONSE" | python3 -m json.tool 2>/dev/null || echo "$RESPONSE"
+echo "$RESPONSE" | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+print(json.dumps(data, indent=2))
+if 'result' in data and 'report_id' in data['result']:
+    print('\n✅ Report created:', data['result']['report_id'])
+    with open('.last_report_id', 'w') as f:
+        f.write(data['result']['report_id'])
+" 2>/dev/null || echo "$RESPONSE"
 echo ""
 
-# Test 2: List reports
-echo "Test 2: List Reports"
-echo "-------------------"
-RESPONSE=$(curl -s "${API_URL}reports")
-echo "Response:"
-echo "$RESPONSE" | python3 -m json.tool 2>/dev/null || echo "$RESPONSE"
-echo ""
-
-# Test 3: Query
-echo "Test 3: Query Reports"
-echo "--------------------"
+# Test 2: Query
+echo "=== Test 2: Query ==="
 RESPONSE=$(curl -s -X POST "${API_URL}orchestrate" \
   -H "Content-Type: application/json" \
   -d '{
     "mode": "query",
-    "message": "Show me all high severity issues",
-    "session_id": "test-session-2"
+    "message": "Show me all reports",
+    "session_id": "test-2"
   }')
 
-echo "Response:"
-echo "$RESPONSE" | python3 -m json.tool 2>/dev/null || echo "$RESPONSE"
+echo "$RESPONSE" | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+if 'result' in data and 'results' in data['result']:
+    print(f\"Found {len(data['result']['results'])} reports\")
+    for r in data['result']['results'][:3]:
+        print(f\"  - {r.get('entity', 'N/A')[:50]} [{r.get('severity', 'N/A')}]\")
+    if 'summary' in data['result']:
+        print(f'\nSummary: {data['result']['summary'][:200]}...')
+else:
+    print(json.dumps(data, indent=2))
+" 2>/dev/null || echo "$RESPONSE"
 echo ""
 
-echo "✅ Tests complete!"
+# Test 3: Management
+if [ -f .last_report_id ]; then
+    REPORT_ID=$(cat .last_report_id)
+    echo "=== Test 3: Management ==="
+    RESPONSE=$(curl -s -X POST "${API_URL}orchestrate" \
+      -H "Content-Type: application/json" \
+      -d "{
+        \"mode\": \"management\",
+        \"message\": \"Assign report $REPORT_ID to Team A\",
+        \"session_id\": \"test-3\"
+      }")
+    
+    echo "$RESPONSE" | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+if 'result' in data:
+    result = data['result']
+    if 'confirmation' in result:
+        print('✅', result['confirmation'])
+    if 'updates' in result:
+        print('Updates applied:', json.dumps(result['updates'], indent=2))
+    if 'error' in result:
+        print('❌ Error:', result['error'])
+else:
+    print(json.dumps(data, indent=2))
+" 2>/dev/null || echo "$RESPONSE"
+    rm -f .last_report_id
+else
+    echo "=== Test 3: Management ==="
+    echo "⚠️  Skipped (no report ID from Test 1)"
+fi
+
+echo ""
+echo "✅ All tests complete!"

@@ -208,20 +208,35 @@ def update_report(report_id, updates):
     """Update report in DynamoDB"""
     table = dynamodb.Table(TABLE_NAME)
     
+    # Reserved keywords in DynamoDB
+    reserved_keywords = {'status', 'name', 'type', 'data', 'timestamp', 'date', 'time'}
+    
     update_expr = "SET "
     expr_values = {}
+    expr_names = {}
     
     for key, value in updates.items():
-        update_expr += f"{key} = :{key}, "
+        # Use expression attribute names for reserved keywords
+        if key.lower() in reserved_keywords:
+            attr_name = f"#{key}"
+            expr_names[attr_name] = key
+            update_expr += f"{attr_name} = :{key}, "
+        else:
+            update_expr += f"{key} = :{key}, "
         expr_values[f":{key}"] = value
     
     update_expr = update_expr.rstrip(", ")
     
-    table.update_item(
-        Key={'report_id': report_id},
-        UpdateExpression=update_expr,
-        ExpressionAttributeValues=expr_values
-    )
+    update_params = {
+        'Key': {'report_id': report_id},
+        'UpdateExpression': update_expr,
+        'ExpressionAttributeValues': expr_values
+    }
+    
+    if expr_names:
+        update_params['ExpressionAttributeNames'] = expr_names
+    
+    table.update_item(**update_params)
 
 
 def handle_ingestion(session_id, user_message, conversation_history):
@@ -247,7 +262,12 @@ Output JSON: {"agents_to_run": ["geo", "entity", "severity"], "reasoning": "..."
     emit_status(session_id, 'geo-agent', 'invoking', 'Extracting location...')
     geo_prompt = """Extract location from the text. Return ONLY valid JSON, no other text.
 Format: {"location": "street address", "geo_coordinates": [longitude, latitude], "confidence": 0.9}
-If you can't find exact coordinates, use approximate ones for the mentioned area."""
+
+IMPORTANT: 
+- geo_coordinates must be [longitude, latitude] as numbers
+- If you can't determine coordinates, use approximate ones for major cities
+- Common US cities: NYC [-74.006, 40.7128], LA [-118.2437, 34.0522], Chicago [-87.6298, 41.8781]
+- If truly unknown, use null for geo_coordinates"""
     geo_response = invoke_bedrock(geo_prompt, user_message)
     try:
         # Try to extract JSON from response
@@ -256,6 +276,12 @@ If you can't find exact coordinates, use approximate ones for the mentioned area
         if json_start >= 0 and json_end > json_start:
             geo_response = geo_response[json_start:json_end]
         results['geo'] = json.loads(geo_response)
+        
+        # Ensure geo_coordinates is valid or set default
+        if not results['geo'].get('geo_coordinates'):
+            results['geo']['geo_coordinates'] = [-74.0060, 40.7128]  # Default to NYC
+            results['geo']['confidence'] = 0.5
+        
         emit_status(session_id, 'geo-agent', 'complete', f'Location extracted', {'confidence': results['geo'].get('confidence', 0.9)})
     except Exception as e:
         print(f"Geo agent error: {e}, response: {geo_response}")
@@ -449,15 +475,47 @@ def handle_management(session_id, user_message, conversation_history, report_id=
     """Handle data management"""
     emit_status(session_id, 'data-management', 'running', 'Processing command...')
     
+    # Enhanced prompt to get structured JSON
+    enhanced_prompt = f"""You are a task management specialist. Parse this command and extract:
+1. The report ID (UUID format)
+2. The action (assign, update status, set due date)
+3. The parameters (team name, status value, date)
+
+Command: {user_message}
+
+Return ONLY valid JSON in this exact format:
+{{
+  "report_id": "extracted-uuid-here",
+  "updates": {{
+    "assignee": "Team Name",
+    "status": "in_progress",
+    "assigned_at": "2025-10-23T00:00:00Z"
+  }},
+  "confirmation": "Brief confirmation message"
+}}
+
+If assigning to a team, use "assignee" field.
+If updating status, use "status" field (values: pending, in_progress, resolved, closed).
+If setting due date, use "due_at" field.
+"""
+    
     # Invoke agent
     response = invoke_bedrock(
-        AGENTS['data-management']['system_prompt'],
+        enhanced_prompt,
         user_message,
         conversation_history
     )
     
     try:
-        data = json.loads(response)
+        # Extract JSON from response
+        json_start = response.find('{')
+        json_end = response.rfind('}') + 1
+        if json_start >= 0 and json_end > json_start:
+            json_str = response[json_start:json_end]
+            data = json.loads(json_str)
+        else:
+            data = json.loads(response)
+        
         target_report_id = data.get('report_id') or report_id
         updates = data.get('updates', {})
         
@@ -468,19 +526,20 @@ def handle_management(session_id, user_message, conversation_history, report_id=
             return {
                 'report_id': target_report_id,
                 'updates': updates,
-                'confirmation': data.get('confirmation'),
+                'confirmation': data.get('confirmation', f'Report {target_report_id[:8]}... updated successfully'),
                 'agent_response': response
             }
         else:
             emit_status(session_id, 'data-management', 'error', 'Missing report ID or updates')
             return {
-                'error': 'Missing report ID or updates',
+                'error': 'Missing report ID or updates. Please specify a report ID and what to update.',
                 'agent_response': response
             }
-    except json.JSONDecodeError:
-        emit_status(session_id, 'data-management', 'completed', response)
+    except Exception as e:
+        print(f"Management agent error: {e}, response: {response}")
+        emit_status(session_id, 'data-management', 'error', 'Failed to parse command')
         return {
-            'confirmation': response,
+            'error': f'Could not parse command: {str(e)}',
             'agent_response': response
         }
 
