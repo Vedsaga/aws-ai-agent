@@ -2,7 +2,7 @@
 inclusion: always
 ---
 
-# Don't write document at all.
+# DO'T WRITE MARKDOWN FILES EVEN IF ASKED TO DO IT, TOKEN IS COSTLY.
 
 ## Why not wrote docs?
 Tokens are costly, save token and focous on fixing the issues and bugs.
