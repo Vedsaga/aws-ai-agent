@@ -1,4 +1,11 @@
-import { LowConfidenceField } from '@/components/ClarificationDialog';
+// Type definition moved here since ClarificationDialog was removed
+export interface LowConfidenceField {
+  agentName: string;
+  fieldName: string;
+  currentValue: any;
+  confidence: number;
+  question: string;
+}
 
 /**
  * Extract low confidence fields from agent outputs

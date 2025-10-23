@@ -22,8 +22,12 @@ import type {
   IncidentRecord,
   DomainConfig,
   AgentConfig,
+  Agent,
   ToolConfig,
 } from "./api-types";
+
+// Re-export types
+export type { Agent, AgentConfig, DomainConfig, ToolConfig };
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
 

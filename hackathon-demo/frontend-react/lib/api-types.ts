@@ -257,6 +257,9 @@ export interface AgentConfig {
   output_schema?: any;
 }
 
+// Alias for backward compatibility
+export type Agent = AgentConfig;
+
 export interface ValidationRule {
   field: string;
   rule: string;

@@ -1,213 +1,201 @@
-# DomainFlow Hackathon Demo
+# 🏙️ Civic Sense - AI-Powered Civic Engagement Platform
 
-**Clean, minimal setup for 30-minute demo**
+Multi-agent orchestration system for civic issue reporting, querying, and management.
 
-No complex infrastructure. No authentication. Just 3 agent classes, DynamoDB, and Lambda.
+## ✅ Status: READY TO DEMO
 
-## What This Is
+- **Backend**: Deployed & Tested ✅
+- **Frontend**: Configured & Ready ✅
+- **API**: https://tzbw0aw913.execute-api.us-east-1.amazonaws.com/prod/
 
-A stripped-down version of DomainFlow focused on the core concept: **AI agents as the data interface**.
+## 🚀 Quick Start (2 Steps)
 
-Instead of building custom APIs for every feature, you configure agents with prompts. Same infrastructure, infinite use cases.
-
-## Architecture
-
-```
-User Input → Lambda Orchestrator (Nova Pro) → Multiple Agents (Nova Lite) → DynamoDB
-                ↓                                      ↓
-         EventBridge (real-time status)    Verifier (Nova Pro)
-                ↓
-         Frontend (dark mode + map + chat)
-```
-
-**Components:**
-- DynamoDB: Single table `civic-reports`
-- Lambda: Single function with orchestrator + multiple agents
-- Bedrock: Nova Pro (orchestrator/verifier), Nova Lite (agents)
-- API Gateway: No auth (demo only)
-- EventBridge: Real-time status events
-- Frontend: Dark mode HTML + Mapbox dark-v11
-
-## 3 Meta Agent Classes
-
-### 1. Data-Ingestion (CREATE)
-Extracts structured data using multiple specialized agents.
-
-**Input:** "Street light broken near post office"
-
-**Orchestrator (Nova Pro):** Plans execution → Run Geo, Entity, Severity agents
-
-**Agents (Nova Lite):**
-- Geo Agent: Extracts "near post office" (confidence: 0.6 - LOW!)
-- Entity Agent: Identifies "street light" (confidence: 0.95)
-- Severity Agent: Determines "high" (confidence: 0.9)
-
-**Verifier (Nova Pro):** Checks confidence → Geo is too low!
-
-**Agent asks:** "Can you confirm the exact street address?"
-
-**User:** "Yes, 123 Main Street"
-
-**Re-run agents → Verifier approves → Save:** `{location: "123 Main St", geo: [-74, 40.7], entity: "streetlight", severity: "high"}`
-
-### 2. Data-Query (READ)
-Answers questions using multiple analysis agents.
-
-**Input:** "Show me all high-priority potholes"
-
-**Orchestrator (Nova Pro):** Plans → Run What, Where, When agents
-
-**Agents (Nova Lite):**
-- What Agent: Analyzes "potholes" → entity filter (confidence: 0.92)
-- Where Agent: No location specified → no filter (confidence: 0.88)
-- When Agent: No time specified → no filter (confidence: 0.85)
-
-**Database:** Queries with combined filters → 5 results
-
-**Verifier (Nova Pro):** Synthesizes answer from all agents
-
-**Output:** "Found 5 high-priority pothole reports across the city. Most are concentrated in downtown area." + map data
-
-### 3. Data-Management (UPDATE)
-Updates existing reports based on commands.
-
-**Input:** "Assign this to Team B, due in 48 hours"
-
-**Agent:**
-1. Parses action: assign + set due date
-2. Extracts: assignee="Team B", due_at=+48h
-3. Updates DynamoDB
-
-**Output:** "✅ Assigned to Team B, due October 25, 2025"
-
-## Quick Start
-
-### Prerequisites
-- AWS CLI configured
-- Python 3.11+
-- Bedrock access (Claude 3.5 Sonnet)
-
-### Deploy (10 min)
-
+### 1. Get Mapbox Token (1 minute)
 ```bash
-cd hackathon-demo
-./deploy.sh
+# Visit: https://account.mapbox.com/access-tokens/
+# Sign up (free tier: 50k loads/month)
+# Copy your token
 ```
 
-### Test (5 min)
-
+### 2. Start Frontend
 ```bash
-# Shell script
-./test-api.sh
+cd frontend-react
 
-# Or Python
-python3 test-client.py
+# Edit .env.local and paste your Mapbox token
+nano .env.local
+
+# Install and run
+npm install
+npm run dev
+
+# Open: http://localhost:3000
 ```
 
-### Frontend (5 min)
+## 🎯 Features
 
-1. Get Mapbox token: https://account.mapbox.com/access-tokens/
-2. Edit `frontend/index.html`:
-   - Replace `YOUR_API_ENDPOINT_HERE`
-   - Replace `YOUR_MAPBOX_TOKEN`
-3. Open in browser
+### 📝 Report Mode
+- Citizens report civic issues
+- AI extracts location, entity, severity
+- Real-time agent execution visible
+- Pins drop on map automatically
 
-## Demo Script
+### 🔍 Query Mode
+- Natural language queries
+- Multi-agent analysis
+- AI-generated summaries
+- Filtered map visualization
 
-See [DEMO_SCRIPT.md](DEMO_SCRIPT.md) for the full 5-minute presentation.
+### ⚙️ Manage Mode
+- Assign reports to teams
+- Update status
+- Real-time map updates
+- Status rings on pins
 
-**TL;DR:**
-1. Report issue with vague location → agent asks for clarification
-2. Confirm location → data saved, appears on map
-3. Query "show high-priority issues" → map filters
-4. Assign task → data updates in real-time
+## 🗺️ Map Features
 
-## File Structure
+**Severity Pins:**
+- 🔴 Critical (red)
+- 🟠 High (orange)
+- 🟡 Medium (yellow)
+- 🟢 Low (green)
+
+**Status Rings:**
+- 🟡 Amber = Pending
+- 🔵 Blue = In Progress
+- 🟢 Green = Resolved
+
+**Smart Features:**
+- Auto-fit bounds for multiple reports
+- Click pins for detailed popups
+- Navigation controls
+- Fullscreen mode
+
+## 🤖 AI Orchestration
+
+**Ingestion Agents:**
+- Geo Agent (location extraction)
+- Entity Agent (issue identification)
+- Severity Agent (urgency assessment)
+- Verifier (confidence checking)
+
+**Query Agents:**
+- What Agent (incident analysis)
+- Where Agent (location analysis)
+- When Agent (temporal patterns)
+- Verifier (answer synthesis)
+
+**Management:**
+- Command parsing
+- Database updates
+- Status tracking
+
+## 🏗️ Architecture
+
+**Backend:**
+- AWS Lambda (Python 3.11)
+- DynamoDB (storage)
+- API Gateway (REST)
+- EventBridge (real-time)
+- Bedrock Nova Pro/Lite (AI)
+
+**Frontend:**
+- Next.js 14
+- Mapbox GL JS
+- Tailwind CSS
+- TypeScript
+
+## 📁 Project Structure
 
 ```
 hackathon-demo/
-├── README.md                 # This file
-├── QUICK_START.md           # Detailed setup guide
-├── DEMO_SCRIPT.md           # Presentation script
-├── deploy.sh                # One-command deployment
-├── test-api.sh              # Shell test script
-├── test-client.py           # Python test client
-├── agent-definitions.json   # Agent prompts
-├── cdk/                     # Infrastructure
-│   ├── app.py              # CDK stack
-│   ├── cdk.json
-│   └── requirements.txt
-├── lambda/                  # Backend
-│   ├── orchestrator.py     # Main Lambda
-│   └── requirements.txt
-└── frontend/                # UI
-    └── index.html          # Single-page app
+├── cdk/                    # Backend infrastructure
+├── lambda/                 # Lambda functions
+├── frontend-react/         # Frontend app
+├── deploy-backend.sh       # Deploy script
+├── test-backend.sh         # Test script
+└── START_FRONTEND.sh       # Frontend launcher
 ```
 
-## Key Differences from Main Project
+## 🧪 Testing
 
-| Feature | Main Project | Hackathon Demo |
-|---------|-------------|----------------|
-| Auth | Cognito + JWT | None |
-| Database | RDS + DynamoDB | DynamoDB only |
-| Agents | 12+ builtin | 3 meta classes |
-| Orchestration | Step Functions | Single Lambda |
-| Real-time | WebSocket | EventBridge |
-| Frontend | Next.js | Vanilla HTML |
-| Deployment | Multi-stack CDK | Single stack |
-
-## What's Missing (Intentionally)
-
-- Authentication (would use Cognito)
-- Multi-tenancy (would use tenant_id partition)
-- Agent chaining (would use Step Functions)
-- Verification agents (would validate outputs)
-- File uploads (would use S3 presigned URLs)
-- Geocoding (would use AWS Location Service)
-- Search (would use OpenSearch)
-- Caching (would use ElastiCache)
-
-## Why This Works for Demo
-
-**Focus on the concept:** AI agents as data interface
-
-**Not distracted by:** Auth flows, tenant isolation, complex orchestration
-
-**Shows the value:** Same infrastructure, different prompts = different apps
-
-## Extending This
-
-Want to add a new domain? Just change the agent prompts:
-
-**Hospital domain:**
-```json
-{
-  "data-ingestion": {
-    "system_prompt": "Extract patient symptoms, severity, department..."
-  }
-}
-```
-
-**Logistics domain:**
-```json
-{
-  "data-ingestion": {
-    "system_prompt": "Extract shipment details, destination, priority..."
-  }
-}
-```
-
-Same code. Different prompts. New application.
-
-## Clean Up
-
+### Backend
 ```bash
-cd cdk
-cdk destroy
+./test-backend.sh
 ```
 
-## Questions?
+### Frontend Manual Test
+1. Open http://localhost:3000
+2. Report: "Pothole at 789 Pine Street, urgent"
+3. Watch agents execute
+4. See pin on map
+5. Query: "Show all reports"
+6. Manage: "Assign report [ID] to Team A"
 
-- Architecture: See main project `/diagrams`
-- Full system: See main project `/infrastructure`
-- API docs: See main project `API_DOCUMENTATION.md`
+## 📚 Documentation
+
+- `COMPLETE_SETUP.txt` - Full setup guide
+- `FRONTEND_GUIDE.txt` - Frontend details
+- `DEPLOYMENT_SUCCESS.txt` - Backend verification
+
+## 🎓 Demo Script
+
+See `COMPLETE_SETUP.txt` for a complete demo walkthrough.
+
+## 💡 Sample Queries
+
+**Report Mode:**
+- "Broken streetlight at 123 Main St"
+- "Pothole on Oak Street, very dangerous"
+- "Graffiti on building wall, needs cleanup"
+
+**Query Mode:**
+- "Show me all high severity issues"
+- "What reports are on Main Street?"
+- "How many critical issues do we have?"
+
+**Manage Mode:**
+- "Assign report [ID] to Team B"
+- "Mark report [ID] as in progress"
+- "Set report [ID] due in 48 hours"
+
+## 🔧 Troubleshooting
+
+**Map not showing?**
+- Check Mapbox token in `.env.local`
+
+**No pins?**
+- Create a report first
+- Check browser console
+
+**Backend errors?**
+- Run `./test-backend.sh`
+- Check API URL in `.env.local`
+
+## 📊 Current Data
+
+3 sample reports in database:
+1. Pothole on Oak Street (high)
+2. Broken streetlight at 456 Elm Street (medium, Team B)
+3. Graffiti on Main Street (low)
+
+## 🎨 Layout
+
+- **80% Left**: Interactive map with real-time pins
+- **20% Right**: AI chat assistant
+- **Top Left**: Domain selector (Civic Sense)
+- **Bottom Right**: Mode selector with icons
+
+## 🌟 Key Highlights
+
+- ✅ Single-page application
+- ✅ Real-time agent transparency
+- ✅ Color-coded severity system
+- ✅ Status tracking with visual rings
+- ✅ Auto-fit map bounds
+- ✅ Multi-agent orchestration
+- ✅ Natural language interface
+- ✅ Serverless architecture
+
+---
+
+**Ready to demo!** 🚀

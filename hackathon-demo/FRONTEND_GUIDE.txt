@@ -1,0 +1,111 @@
+🎨 CIVIC SENSE FRONTEND - SETUP GUIDE
+======================================
+
+LAYOUT DESIGN:
+- 80% Left: Mapbox with real-time pins
+- 20% Right: Chat panel with AI assistant
+- Top Left: "Civic Sense" domain name (16px padding)
+- Stadium-style input with mode selector
+
+FEATURES IMPLEMENTED:
+✅ Single-page application
+✅ 80/20 split layout (map/chat)
+✅ Mode switching (Report/Query/Manage) with icons
+✅ Real-time agent status display
+✅ Color-coded severity pins (🔴🟠🟡🟢)
+✅ Status rings on pins (pending/in-progress/resolved)
+✅ Auto-fit bounds for multiple reports
+✅ Emoji support in pins
+✅ Responsive popups with full details
+✅ Legend with severity and status indicators
+
+QUICK START:
+1. Get Mapbox Token (FREE):
+   - Visit: https://account.mapbox.com/access-tokens/
+   - Create account (free tier: 50k loads/month)
+   - Copy your token
+
+2. Configure:
+   cd hackathon-demo/frontend-react
+   nano .env.local
+   
+   Replace YOUR_MAPBOX_TOKEN_HERE with your actual token
+
+3. Install & Run:
+   npm install
+   npm run dev
+
+4. Open: http://localhost:3000
+
+USAGE:
+1. Select Mode:
+   - Click the colored button at bottom of chat
+   - Choose: Report 📝, Query 🔍, or Manage ⚙️
+
+2. Report Mode:
+   - Type: "Broken streetlight at 456 Elm Street"
+   - AI extracts location, severity, entity
+   - Pin appears on map automatically
+
+3. Query Mode:
+   - Type: "Show me all high severity issues"
+   - AI searches database
+   - Results displayed in chat
+
+4. Manage Mode:
+   - Type: "Assign report XYZ to Team A"
+   - Updates report status
+   - Pin color changes on map
+
+MAP FEATURES:
+- Severity Emojis:
+  🔴 Critical
+  🟠 High
+  🟡 Medium
+  🟢 Low
+
+- Status Rings:
+  🟡 Amber ring = Pending
+  🔵 Blue ring = In Progress
+  🟢 Green ring = Resolved
+
+- Auto-fit: Map automatically zooms to show all pins
+- Click pins for detailed popup
+- Navigation controls (zoom, rotate)
+- Fullscreen mode available
+
+AGENT STATUS:
+- Shows real-time agent execution
+- Confidence scores displayed
+- Color-coded status indicators:
+  🟢 Green = Completed
+  🔴 Red = Error
+  🟡 Yellow = Running (animated pulse)
+
+DESIGN REFERENCE:
+Based on infrastructure/frontend with:
+- Cleaner, single-page layout
+- Stadium input design
+- Mode selector with icons
+- Enhanced map visualization
+- Real-time status transparency
+
+API INTEGRATION:
+- Backend: https://tzbw0aw913.execute-api.us-east-1.amazonaws.com/prod/
+- Endpoints:
+  POST /orchestrate - Submit requests
+  GET /reports - List all reports
+- Auto-refresh after operations
+- Error handling with user feedback
+
+TROUBLESHOOTING:
+- Map not showing? Check Mapbox token in .env.local
+- No pins? Backend might be empty, create a report first
+- Agent status not showing? Check browser console for errors
+- Layout issues? Clear browser cache and reload
+
+CUSTOMIZATION:
+- Colors: Edit MODE_CONFIG in app/page.tsx
+- Map style: Change 'mapbox://styles/mapbox/dark-v11' in CivicMap.tsx
+- Layout ratio: Adjust w-4/5 and w-1/5 classes in app/page.tsx
+- Domain name: Edit "Civic Sense" text in app/page.tsx

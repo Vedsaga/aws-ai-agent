@@ -136,7 +136,6 @@ export default function CivicMap({ reports }: CivicMapProps) {
       el.style.fontSize = '28px';
       el.style.cursor = 'pointer';
       el.style.filter = 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))';
-      el.style.transition = 'transform 0.2s';
       el.textContent = severityConfig.emoji;
 
       // Add status ring
@@ -146,7 +145,7 @@ export default function CivicMap({ reports }: CivicMapProps) {
         el.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
       }
 
-      // Hover effect
+      // Hover effect - use scale transform on a wrapper to avoid position issues
       el.addEventListener('mouseenter', () => {
         el.style.transform = 'scale(1.2)';
       });
@@ -200,10 +199,12 @@ export default function CivicMap({ reports }: CivicMapProps) {
 
       const popup = new mapboxgl.Popup({ 
         offset: 25,
-        maxWidth: '300px'
+        maxWidth: '300px',
+        closeButton: false,
+        closeOnClick: false
       }).setHTML(popupContent);
 
-      // Add marker
+      // Add marker - Mapbox automatically handles positioning
       const marker = new mapboxgl.Marker(el)
         .setLngLat([lng, lat])
         .setPopup(popup)
